@@ -186,8 +186,9 @@ const Dashboard: React.FC = () => {
 
         {/* Right Column: Info & Trust */}
         <div className="lg:col-span-1 space-y-6">
+           <div className="sticky top-24 space-y-6">
            {/* Summary Card */}
-           <div className="bg-gradient-to-b from-zinc-900 to-black border border-zinc-800 rounded-3xl p-8 backdrop-blur-md sticky top-24 shadow-2xl">
+           <div className="bg-gradient-to-b from-zinc-900 to-black border border-zinc-800 rounded-3xl p-8 backdrop-blur-md shadow-2xl">
               <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
                  <MapPin className="w-5 h-5 text-emerald-500" /> Concierge Flow
               </h3>
@@ -251,6 +252,7 @@ const Dashboard: React.FC = () => {
                   Chat on WhatsApp <ExternalLink className="w-3 h-3" />
                 </div>
            </button>
+           </div>
         </div>
       </div>
     </div>
