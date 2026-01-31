@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import { ArrowRight, CheckCircle2, MessageCircle, Star, Users, Globe2, Shield } from 'lucide-react';
 import { FEATURES, SERVICES, renderIcon } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
@@ -8,6 +9,13 @@ const LandingPage: React.FC = () => {
   const { formatPrice } = useCurrency();
   return (
     <div className="flex flex-col bg-black">
+      <Helmet>
+        <title>SMSKenya - Premium SMS Verification & Virtual Numbers in Kenya</title>
+        <meta name="description" content="Get premium non-VoIP virtual numbers for SMS verification in Kenya. Instant WhatsApp, Telegram, and PayPal verification with secure M-PESA payments. Online 24/7." />
+        <meta name="keywords" content="SMS verification Kenya, buy virtual number Kenya, non-VoIP number, verify WhatsApp Kenya, OTP verification service, temporary phone number Kenya, receive SMS online, anonymous SMS Kenya" />
+        <link rel="canonical" href="https://smskenya.com/" />
+      </Helmet>
+
       {/* Hero Section */}
       <section className="relative pt-32 pb-32 overflow-hidden">
         {/* Background Grid */}

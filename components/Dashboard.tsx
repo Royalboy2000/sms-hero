@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Helmet } from 'react-helmet-async';
 import {
   Search,
   MessageCircle,
@@ -37,6 +38,12 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <Helmet>
+        <title>Dashboard - Buy Premium Virtual Numbers | SMSKenya</title>
+        <meta name="description" content="Browse our catalog of premium services. Buy verification numbers for WhatsApp, Telegram, PayPal, Google, and more. Instant delivery and 24/7 support." />
+        <link rel="canonical" href="https://smskenya.com/app" />
+      </Helmet>
+
       {/* Header Info */}
       <div className="flex flex-col md:flex-row justify-between items-end mb-16 border-b border-white/5 pb-8">
         <div>
