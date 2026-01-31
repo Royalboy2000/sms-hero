@@ -243,7 +243,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex items-center gap-2 text-emerald-100 font-medium uppercase tracking-widest text-xs">
                   <MessageCircle className="w-4 h-4" /> 24/7 Support
                 </div>
-                <span className="text-2xl font-bold font-mono">+44 7598 69167</span>
+                <span className="text-2xl font-bold font-mono">+44 7598 691673</span>
                 <div className="flex items-center gap-2 mt-2 bg-white/20 px-4 py-1.5 rounded-full text-sm font-medium backdrop-blur-sm group-hover:bg-white/30 transition-colors">
                   Chat on WhatsApp <ExternalLink className="w-3 h-3" />
                 </div>
