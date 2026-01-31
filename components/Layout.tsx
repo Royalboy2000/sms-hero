@@ -2,6 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MessageSquare, Menu, X, Smartphone } from 'lucide-react';
 import { WHATSAPP_CONTACT } from '../constants';
+import { useCurrency } from '../context/CurrencyContext';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const { currency, toggleCurrency } = useCurrency();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -54,7 +56,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </div>
             </div>
 
-            <div className="hidden md:block">
+            <div className="hidden md:flex items-center gap-4">
+              <button
+                onClick={toggleCurrency}
+                className="px-4 py-2 rounded-full bg-zinc-900 border border-zinc-700 text-zinc-300 text-xs font-bold hover:text-white hover:border-emerald-500/50 transition-all"
+              >
+                {currency === 'KES' ? '🇰🇪 KES' : '🇺🇸 USD'}
+              </button>
               <Link
                 to="/app"
                 className="bg-white text-black hover:bg-zinc-200 px-6 py-2.5 rounded-full text-sm font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] flex items-center gap-2"
@@ -93,6 +101,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 Catalog
               </Link>
+              <button
+                onClick={() => {
+                    toggleCurrency();
+                    setIsMenuOpen(false);
+                }}
+                className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-zinc-300 hover:text-white hover:bg-zinc-900"
+              >
+                Switch to {currency === 'KES' ? 'USD' : 'KES'}
+              </button>
               <Link
                  to="/app"
                  onClick={() => setIsMenuOpen(false)}

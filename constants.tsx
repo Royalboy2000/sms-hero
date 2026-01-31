@@ -15,17 +15,17 @@ export const WHATSAPP_CONTACT = "447598691673";
 
 // Pricing in Kenyan Shillings (KSh) - Premium Tier (Min 2000)
 export const SERVICES: Service[] = [
-  { id: 'wa', name: 'WhatsApp', icon: 'whatsapp', price: 2500, category: 'messenger' },
-  { id: 'tg', name: 'Telegram', icon: 'telegram', price: 2200, category: 'messenger' },
-  { id: 'ig', name: 'Instagram', icon: 'instagram', price: 2000, category: 'social' },
-  { id: 'fb', name: 'Facebook', icon: 'facebook', price: 2000, category: 'social' },
-  { id: 'goo', name: 'Google', icon: 'google', price: 2800, category: 'other' },
-  { id: 'tt', name: 'TikTok', icon: 'tiktok', price: 2000, category: 'social' },
-  { id: 'tw', name: 'Twitter/X', icon: 'twitter', price: 2100, category: 'social' },
-  { id: 'li', name: 'LinkedIn', icon: 'linkedin', price: 2400, category: 'social' },
-  { id: 'pp', name: 'PayPal', icon: 'paypal', price: 3000, category: 'other' },
-  { id: 'airbnb', name: 'Airbnb', icon: 'airbnb', price: 2200, category: 'other' },
-  { id: 'bolt', name: 'Bolt', icon: 'bolt', price: 2000, category: 'other' },
+  { id: 'wa', name: 'WhatsApp', icon: 'whatsapp', price: 2500, priceUsd: 20, category: 'messenger' },
+  { id: 'tg', name: 'Telegram', icon: 'telegram', price: 2200, priceUsd: 20, category: 'messenger' },
+  { id: 'ig', name: 'Instagram', icon: 'instagram', price: 2000, priceUsd: 20, category: 'social' },
+  { id: 'fb', name: 'Facebook', icon: 'facebook', price: 2000, priceUsd: 20, category: 'social' },
+  { id: 'goo', name: 'Google', icon: 'google', price: 2800, priceUsd: 22, category: 'other' },
+  { id: 'tt', name: 'TikTok', icon: 'tiktok', price: 2000, priceUsd: 20, category: 'social' },
+  { id: 'tw', name: 'Twitter/X', icon: 'twitter', price: 2100, priceUsd: 20, category: 'social' },
+  { id: 'li', name: 'LinkedIn', icon: 'linkedin', price: 2400, priceUsd: 20, category: 'social' },
+  { id: 'pp', name: 'PayPal', icon: 'paypal', price: 3000, priceUsd: 24, category: 'other' },
+  { id: 'airbnb', name: 'Airbnb', icon: 'airbnb', price: 2200, priceUsd: 20, category: 'other' },
+  { id: 'bolt', name: 'Bolt', icon: 'bolt', price: 2000, priceUsd: 20, category: 'other' },
 ];
 
 export const COUNTRIES: Country[] = [
