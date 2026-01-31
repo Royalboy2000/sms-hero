@@ -3,6 +3,7 @@ export interface Service {
   name: string;
   icon: string;
   price: number;
+  priceUsd: number;
   category: 'social' | 'messenger' | 'other';
 }
 

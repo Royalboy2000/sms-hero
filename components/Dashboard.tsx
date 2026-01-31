@@ -10,11 +10,13 @@ import {
 } from 'lucide-react';
 import { SERVICES, COUNTRIES, renderIcon, WHATSAPP_CONTACT } from '../constants';
 import { Service, Country } from '../types';
+import { useCurrency } from '../context/CurrencyContext';
 
 const Dashboard: React.FC = () => {
   const [selectedCountry, setSelectedCountry] = useState<Country>(COUNTRIES[0]);
   const [searchQuery, setSearchQuery] = useState('');
   const [countryQuery, setCountryQuery] = useState('');
+  const { currency, formatPrice } = useCurrency();
 
   // Filter services
   const filteredServices = SERVICES.filter(service =>
@@ -27,7 +29,8 @@ const Dashboard: React.FC = () => {
   );
 
   const handleOrder = (service: Service) => {
-    const text = `Hello, I would like to buy a verification number.%0A%0AService: ${service.name}%0ACountry: ${selectedCountry.name}%0APrice: KSh ${service.price}`;
+    const priceText = currency === 'KES' ? `KSh ${service.price}` : `$${service.priceUsd}`;
+    const text = `Hello, I would like to buy a verification number.%0A%0AService: ${service.name}%0ACountry: ${selectedCountry.name}%0APrice: ${priceText}`;
     const url = `https://wa.me/${WHATSAPP_CONTACT}?text=${text}`;
     window.open(url, '_blank');
   };
@@ -157,9 +160,9 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-6">
-                            <div className="text-right hidden sm:block">
-                                <span className="block font-mono text-emerald-400 font-bold text-lg">KSh {service.price.toLocaleString()}</span>
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-4 sm:gap-6">
+                            <div className="text-right">
+                                <span className="block font-mono text-emerald-400 font-bold text-lg">{formatPrice(service)}</span>
                             </div>
                             <button
                                 onClick={() => handleOrder(service)}

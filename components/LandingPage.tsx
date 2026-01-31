@@ -2,8 +2,10 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, CheckCircle2, MessageCircle, Star, Users, Globe2, Shield } from 'lucide-react';
 import { FEATURES, SERVICES, renderIcon } from '../constants';
+import { useCurrency } from '../context/CurrencyContext';
 
 const LandingPage: React.FC = () => {
+  const { formatPrice } = useCurrency();
   return (
     <div className="flex flex-col bg-black">
       {/* Hero Section */}
@@ -85,7 +87,7 @@ const LandingPage: React.FC = () => {
                   </div>
                   <div className="text-center">
                     <span className="block text-sm font-bold text-zinc-200">{service.name}</span>
-                    <span className="block text-[10px] text-zinc-500 mt-2 uppercase tracking-wide">Start KSh {service.price.toLocaleString()}</span>
+                    <span className="block text-[10px] text-zinc-500 mt-2 uppercase tracking-wide">Start {formatPrice(service)}</span>
                   </div>
                 </Link>
               ))}
