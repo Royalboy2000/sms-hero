@@ -80,7 +80,7 @@ const Dashboard: React.FC = () => {
       <Helmet>
         <title>{getPageTitle()}</title>
         <meta name="description" content={getPageDescription()} />
-        <link rel="canonical" href={window.location.href.split('?')[0]} />
+        <link rel="canonical" href={window.location.href.replace('smskenya.com', 'smskenya.net').split('?')[0]} />
       </Helmet>
 
       {/* Header Info */}

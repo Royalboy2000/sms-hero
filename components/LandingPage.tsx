@@ -13,7 +13,7 @@ const LandingPage: React.FC = () => {
         <title>SMSKenya - Premium SMS Verification & Virtual Numbers in Kenya</title>
         <meta name="description" content="Get premium non-VoIP virtual numbers for SMS verification in Kenya. Instant WhatsApp, Telegram, and PayPal verification with secure M-PESA payments. Online 24/7." />
         <meta name="keywords" content="SMS verification Kenya, buy virtual number Kenya, non-VoIP number, verify WhatsApp Kenya, OTP verification service, temporary phone number Kenya, receive SMS online, anonymous SMS Kenya" />
-        <link rel="canonical" href="https://smskenya.com/" />
+        <link rel="canonical" href="https://smskenya.net/" />
       </Helmet>
 
       {/* Hero Section */}
