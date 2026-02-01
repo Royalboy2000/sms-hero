@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { useParams } from 'react-router-dom';
 import {
   Search,
   MessageCircle,
@@ -18,6 +19,23 @@ const Dashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [countryQuery, setCountryQuery] = useState('');
   const { currency, formatPrice } = useCurrency();
+  const { serviceId, countryId } = useParams<{ serviceId?: string, countryId?: string }>();
+
+  useEffect(() => {
+    // Handle URL Params
+    if (serviceId) {
+      const foundService = SERVICES.find(s => s.id === serviceId);
+      if (foundService) {
+        setSearchQuery(foundService.name);
+      }
+    }
+    if (countryId) {
+      const foundCountry = COUNTRIES.find(c => c.code.toLowerCase() === countryId?.toLowerCase());
+      if (foundCountry) {
+        setSelectedCountry(foundCountry);
+      }
+    }
+  }, [serviceId, countryId]);
 
   // Filter services
   const filteredServices = SERVICES.filter(service =>
@@ -36,12 +54,33 @@ const Dashboard: React.FC = () => {
     window.open(url, '_blank');
   };
 
+  const getPageTitle = () => {
+    if (serviceId && countryId && selectedCountry.code.toLowerCase() === countryId.toLowerCase()) {
+        const s = SERVICES.find(s => s.id === serviceId);
+        if (s) return `Buy ${s.name} Number for ${selectedCountry.name} | SMSKenya`;
+    }
+    if (serviceId) {
+        const s = SERVICES.find(s => s.id === serviceId);
+        if (s) return `Buy ${s.name} Verification Number | SMSKenya`;
+    }
+    if (countryId) {
+        const c = COUNTRIES.find(c => c.code.toLowerCase() === countryId.toLowerCase());
+        if (c) return `Buy Virtual Numbers for ${c.name} | SMSKenya`;
+    }
+    return "Dashboard - Buy Premium Virtual Numbers | SMSKenya";
+  };
+
+  const getPageDescription = () => {
+    if (serviceId && countryId) return `Get a real non-VoIP ${searchQuery} number for ${selectedCountry.name}. Instant delivery via WhatsApp.`;
+    return "Browse our catalog of premium services. Buy verification numbers for WhatsApp, Telegram, PayPal, Google, and more. Instant delivery and 24/7 support.";
+  };
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <Helmet>
-        <title>Dashboard - Buy Premium Virtual Numbers | SMSKenya</title>
-        <meta name="description" content="Browse our catalog of premium services. Buy verification numbers for WhatsApp, Telegram, PayPal, Google, and more. Instant delivery and 24/7 support." />
-        <link rel="canonical" href="https://smskenya.com/app" />
+        <title>{getPageTitle()}</title>
+        <meta name="description" content={getPageDescription()} />
+        <link rel="canonical" href={window.location.href.split('?')[0]} />
       </Helmet>
 
       {/* Header Info */}
