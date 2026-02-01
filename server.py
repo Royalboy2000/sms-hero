@@ -11,6 +11,7 @@ mimetypes.add_type('application/javascript', '.jsx')
 mimetypes.add_type('text/css', '.css')
 mimetypes.add_type('image/svg+xml', '.svg')
 mimetypes.add_type('application/json', '.json')
+mimetypes.add_type('application/xml', '.xml')
 
 class RobustHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
