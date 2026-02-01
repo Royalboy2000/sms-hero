@@ -1,5 +1,5 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://smskenya.com/sitemap.xml
-Sitemap: https://smskenya.com/sitemap.website.xml
+Sitemap: https://smskenya.net/sitemap.xml
+Sitemap: https://smskenya.net/sitemap.website.xml
