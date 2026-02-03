@@ -10,9 +10,9 @@ const LandingPage: React.FC = () => {
   return (
     <div className="flex flex-col bg-black">
       <Helmet>
-        <title>SMSKenya - Premium SMS Verification & Virtual Numbers in Kenya</title>
-        <meta name="description" content="Get premium non-VoIP virtual numbers for SMS verification in Kenya. Instant WhatsApp, Telegram, and PayPal verification with secure M-PESA payments. Online 24/7." />
-        <meta name="keywords" content="SMS verification Kenya, buy virtual number Kenya, non-VoIP number, verify WhatsApp Kenya, OTP verification service, temporary phone number Kenya, receive SMS online, anonymous SMS Kenya" />
+        <title>SMSKenya - United States & Canada Numbers in Kenya</title>
+        <meta name="description" content="Get premium United States & Canada Numbers for WhatsApp verification in Kenya. Instant WhatsApp, Telegram, and PayPal activation with secure M-PESA payments. Online 24/7." />
+        <meta name="keywords" content="WhatsApp Verification Kenya, US Number Kenya, Buy International Number Kenya, Verify WhatsApp, Receive SMS Online, Activation Code Kenya" />
         <link rel="canonical" href="https://smskenya.net/" />
       </Helmet>
 
@@ -28,32 +28,42 @@ const LandingPage: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            Premium Kenyan Service • Online 24/7
+            Proudly Kenyan • Based in Mombasa
           </div>
 
-          <h1 className="text-6xl md:text-9xl font-bold tracking-tighter text-white mb-8 leading-[0.9]">
-            Verify. <span className="text-transparent bg-clip-text bg-gradient-to-br from-zinc-400 to-zinc-700">Secure.</span> <br/>
+          <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-8 leading-[0.95]">
+            Open a US WhatsApp <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">
-              Private.
+              Account in 2 Minutes.
             </span>
           </h1>
 
           <p className="mt-8 max-w-2xl mx-auto text-lg md:text-xl text-zinc-400 mb-12 font-light leading-relaxed">
-            The professional's choice for SMS verification in 2026. Access premium non-VoIP numbers for WhatsApp, Telegram, and PayPal directly via our WhatsApp Concierge.
+            Get your WhatsApp Activation Code instantly. Works for WhatsApp, Telegram, TikTok, and more.
           </p>
+
+          {/* Visual Proof */}
+          <div className="mx-auto max-w-sm w-full bg-zinc-900/80 backdrop-blur-xl border border-zinc-800 rounded-2xl p-4 shadow-2xl mb-12 animate-fade-in-up delay-200">
+             <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-full bg-[#25D366] flex items-center justify-center shrink-0">
+                      <MessageCircle className="w-6 h-6 text-white" />
+                 </div>
+                 <div className="flex-1 text-left">
+                      <div className="flex justify-between items-center mb-0.5">
+                          <span className="font-bold text-white text-sm">WhatsApp</span>
+                          <span className="text-xs text-zinc-500">now</span>
+                      </div>
+                      <div className="text-xs text-zinc-300">Your verification code is: <span className="text-white font-bold text-sm ml-1">123-456</span></div>
+                 </div>
+             </div>
+          </div>
 
           <div className="flex flex-col sm:flex-row justify-center gap-6">
             <Link
               to="/app"
-              className="inline-flex items-center justify-center px-8 py-4 bg-white text-black rounded-full font-bold text-lg hover:bg-zinc-200 transition-all shadow-[0_0_50px_rgba(255,255,255,0.15)] gap-2 group hover:scale-105"
+              className="inline-flex items-center justify-center px-8 py-4 bg-emerald-600 text-white rounded-full font-bold text-lg hover:bg-emerald-500 transition-all shadow-[0_0_50px_rgba(16,185,129,0.3)] gap-2 group hover:scale-105"
             >
-              Start Order <MessageCircle className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </Link>
-            <Link
-              to="/app"
-              className="inline-flex items-center justify-center px-8 py-4 border border-zinc-800 text-zinc-300 rounded-full font-medium hover:bg-zinc-900 transition-all hover:border-zinc-700 backdrop-blur-sm"
-            >
-              View Catalog
+              Get My International Number <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </Link>
           </div>
 
@@ -80,7 +90,7 @@ const LandingPage: React.FC = () => {
            <div className="flex flex-col md:flex-row justify-between items-end mb-16">
               <div>
                 <h2 className="text-4xl font-bold text-white mb-3">Supported Platforms</h2>
-                <p className="text-zinc-500 text-lg">Instant verification for the world's most popular apps.</p>
+                <p className="text-zinc-500 text-lg">Works for WhatsApp, Telegram, TikTok, and more.</p>
               </div>
               <Link to="/app" className="hidden md:flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-medium">
                 View all 500+ apps <ArrowRight className="w-4 h-4" />
@@ -107,8 +117,8 @@ const LandingPage: React.FC = () => {
       <section id="features" className="py-32 relative overflow-hidden bg-black">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
-             <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Enterprise Grade Privacy</h2>
-             <p className="text-zinc-400 max-w-2xl mx-auto">We don't use VoIP. We use real SIM cards from tier-1 carriers globally to ensure 100% delivery rates for your OTPs.</p>
+             <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Simple & Secure</h2>
+             <p className="text-zinc-400 max-w-2xl mx-auto">We use real international phone lines to ensure you get your code. Guaranteed delivery rates for your activation codes.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {FEATURES.map((feature, index) => (
@@ -176,7 +186,7 @@ const LandingPage: React.FC = () => {
                            </div>
                            <div>
                               <h4 className="text-white font-bold">Local Support</h4>
-                              <p className="text-sm text-zinc-500 mt-1">Based in Nairobi. Real human support via WhatsApp.</p>
+                              <p className="text-sm text-zinc-500 mt-1">Based in Mombasa. Real human support via WhatsApp.</p>
                            </div>
                         </div>
                      </div>
