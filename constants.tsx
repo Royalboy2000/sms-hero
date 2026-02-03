@@ -64,12 +64,12 @@ export const COUNTRIES: Country[] = [
 export const FEATURES = [
   {
     title: 'Concierge Service',
-    description: 'Personalized setup via WhatsApp.',
+    description: 'Personalized help via WhatsApp.',
     icon: <Zap className="w-5 h-5 text-emerald-400" />
   },
   {
     title: 'Tier-1 Carriers',
-    description: 'Real non-VoIP SIMs for 100% delivery.',
+    description: 'Real SIM cards for guaranteed delivery.',
     icon: <Globe className="w-5 h-5 text-emerald-400" />
   },
   {

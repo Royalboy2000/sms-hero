@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { MessageSquare, Menu, X, Smartphone } from 'lucide-react';
-import { WHATSAPP_CONTACT } from '../constants';
+import { WHATSAPP_CONTACT, renderIcon } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
 
 interface LayoutProps {
@@ -146,6 +146,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
       </footer>
+
+      {/* Floating WhatsApp Button */}
+      <a
+        href={`https://wa.me/${WHATSAPP_CONTACT}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-[#25D366] hover:bg-[#20bd5a] text-white px-5 py-3 rounded-full shadow-lg hover:shadow-xl transition-all hover:scale-105 group"
+      >
+        <div className="w-6 h-6 flex items-center justify-center">
+            {renderIcon('whatsapp', 'w-6 h-6 text-white')}
+        </div>
+        <span className="font-bold text-sm hidden sm:block">Need help? Chat with us.</span>
+        <span className="font-bold text-sm sm:hidden">Chat</span>
+      </a>
     </div>
   );
 };
