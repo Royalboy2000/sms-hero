@@ -39,7 +39,7 @@ const Typewriter = ({ texts, delay = 150, pause = 2000 }: { texts: string[], del
   );
 };
 
-const ANIMATED_COUNTRIES = ['US', 'Canada', 'UAE', 'Saudi', 'UK'];
+const ANIMATED_COUNTRIES = ['Saudi', 'Canada', 'UAE', 'USA', 'UK'];
 
 const LandingPage: React.FC = () => {
   const { formatPrice } = useCurrency();
