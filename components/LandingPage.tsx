@@ -5,6 +5,42 @@ import { ArrowRight, CheckCircle2, MessageCircle, Star, Users, Globe2, Shield } 
 import { FEATURES, SERVICES, renderIcon } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
 
+const Typewriter = ({ texts, delay = 150, pause = 2000 }: { texts: string[], delay?: number, pause?: number }) => {
+  const [currentTextIndex, setCurrentTextIndex] = React.useState(0);
+  const [currentText, setCurrentText] = React.useState('');
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
+  React.useEffect(() => {
+    const timeout = setTimeout(() => {
+      const fullText = texts[currentTextIndex];
+
+      if (!isDeleting) {
+        setCurrentText(fullText.substring(0, currentText.length + 1));
+        if (currentText === fullText) {
+          setTimeout(() => setIsDeleting(true), pause);
+        }
+      } else {
+        setCurrentText(fullText.substring(0, currentText.length - 1));
+        if (currentText === '') {
+          setIsDeleting(false);
+          setCurrentTextIndex((prev) => (prev + 1) % texts.length);
+        }
+      }
+    }, isDeleting ? delay / 2 : delay);
+
+    return () => clearTimeout(timeout);
+  }, [currentText, isDeleting, currentTextIndex, texts, delay, pause]);
+
+  return (
+    <span className="relative">
+      {currentText}
+      <span className="ml-1 inline-block w-[4px] h-[0.8em] bg-emerald-500 animate-pulse align-middle"></span>
+    </span>
+  );
+};
+
+const ANIMATED_COUNTRIES = ['US', 'Canada', 'UAE', 'Saudi', 'UK'];
+
 const LandingPage: React.FC = () => {
   const { formatPrice } = useCurrency();
   return (
@@ -31,8 +67,8 @@ const LandingPage: React.FC = () => {
             Proudly Kenyan • Based in Mombasa
           </div>
 
-          <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-8 leading-[0.95]">
-            Open a US WhatsApp <br/>
+          <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-8 leading-[0.95] min-h-[2em]">
+            Open a <Typewriter texts={ANIMATED_COUNTRIES} /> WhatsApp <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">
               Account in 2 Minutes.
             </span>
