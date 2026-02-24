@@ -151,9 +151,10 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                         setSelectedService(service);
                         setStep(2);
                       }}
-                      className="group flex flex-col items-center gap-3 p-6 rounded-3xl bg-zinc-900/30 border border-zinc-800/50 hover:border-emerald-500/40 hover:bg-zinc-900 transition-all duration-300"
+                      className="group relative flex flex-col items-center gap-3 p-6 rounded-3xl bg-zinc-900/30 border border-zinc-800/50 hover:border-emerald-500/40 hover:bg-zinc-900 transition-all duration-300 overflow-hidden"
                     >
-                      <div className="p-3 bg-zinc-800 rounded-2xl group-hover:scale-110 transition-transform">
+                      <div className="absolute inset-0 bg-emerald-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="p-3 bg-zinc-800 rounded-2xl group-hover:scale-110 transition-transform relative z-10">
                         {renderIcon(service.icon, "w-8 h-8 text-zinc-300 group-hover:text-emerald-400")}
                       </div>
                       <div className="text-center">
@@ -197,12 +198,15 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                             <button
                                 key={country.code}
                                 onClick={() => setSelectedCountry(country)}
-                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${
+                                className={`relative flex items-center gap-3 p-3 rounded-xl border transition-all overflow-hidden ${
                                     selectedCountry?.code === country.code
-                                    ? 'bg-emerald-500/10 border-emerald-500 text-white'
+                                    ? 'bg-emerald-500/20 border-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.2)]'
                                     : 'bg-black border-zinc-800 text-zinc-400 hover:border-zinc-700'
                                 }`}
                             >
+                                {selectedCountry?.code === country.code && (
+                                    <div className="absolute inset-0 bg-emerald-500/5 animate-pulse" />
+                                )}
                                 <span className="text-xl">{country.flag}</span>
                                 <span className="text-xs font-medium truncate">{country.name}</span>
                             </button>
@@ -225,13 +229,16 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                             <p className="text-2xl font-mono font-bold text-white">{formatPrice(selectedService)}</p>
                         </div>
                     </div>
-                    <button
-                        onClick={handleOrder}
-                        className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-900/20 group hover:scale-105"
-                    >
-                        Send Order to WhatsApp
-                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                    </button>
+                    <div className="flex flex-col items-end gap-1">
+                        <button
+                            onClick={handleOrder}
+                            className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105"
+                        >
+                            Send Order to WhatsApp
+                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        </button>
+                        <p className="text-[10px] text-zinc-500 font-medium">Pay safely via M-PESA</p>
+                    </div>
                 </div>
              ) : (
                 <div className="flex items-center gap-3 text-zinc-500 bg-white/5 p-4 rounded-2xl">
