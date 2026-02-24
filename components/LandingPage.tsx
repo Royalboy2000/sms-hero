@@ -68,7 +68,7 @@ const LandingPage: React.FC = () => {
           </div>
 
           <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-8 leading-[0.95] min-h-[2em]">
-            Open a <Typewriter texts={ANIMATED_COUNTRIES} /> WhatsApp <br/>
+            Buy a <Typewriter texts={ANIMATED_COUNTRIES} /> WhatsApp <br/>
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">
               Account in 2 Minutes.
             </span>

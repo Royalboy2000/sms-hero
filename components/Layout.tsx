@@ -52,7 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     isActive('/app') ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
                   }`}
                 >
-                  Catalog
+                  Shop
                 </Link>
               </div>
             </div>
@@ -100,7 +100,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 onClick={() => setIsMenuOpen(false)}
                 className="block px-3 py-3 rounded-md text-base font-medium text-zinc-300 hover:text-white hover:bg-zinc-900"
               >
-                Catalog
+                Shop
               </Link>
               <button
                 onClick={() => {

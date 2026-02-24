@@ -1,4 +1,5 @@
 from playwright.sync_api import sync_playwright, expect
+import re
 
 def run():
     with sync_playwright() as p:
@@ -12,7 +13,7 @@ def run():
         page.wait_for_selector("h1")
 
         # Verify Headline
-        expect(page.get_by_role("heading", name="Open a US WhatsApp Account")).to_be_visible()
+        expect(page.get_by_role("heading", name=re.compile(r"Buy a .* WhatsApp Account", re.IGNORECASE))).to_be_visible()
 
         # Verify CTA
         expect(page.get_by_role("link", name="Get My International Number")).to_be_visible()
