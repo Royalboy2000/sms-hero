@@ -32,7 +32,7 @@ const EmailCapture: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch('http://77.221.151.8:5678/webhook/smskenya-signup', {
+      const response = await fetch('https://smskenya.net/n8n-webhook/smskenya-signup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
