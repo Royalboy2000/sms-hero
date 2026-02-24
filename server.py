@@ -46,13 +46,12 @@ class RobustHandler(http.server.SimpleHTTPRequestHandler):
                 super().do_GET()
                 return
 
-        # 5. SPA Fallback
-        # If the path looks like a route (no dot extension), serve index.html
-        # Exception: Don't fallback for things that look like files (e.g. style.css)
+        # 5. Redirect unknown paths or routes to home
         filename = os.path.basename(path)
-        if '.' not in filename:
-             self.path = '/index.html'
-             super().do_GET()
+        if path != '/' and ('.' not in filename or not os.path.exists(self.translate_path(path))):
+             self.send_response(302)
+             self.send_header('Location', '/')
+             self.end_headers()
              return
 
         # 6. Default behavior (will 404)
