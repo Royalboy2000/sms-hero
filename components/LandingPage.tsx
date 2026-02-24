@@ -59,6 +59,8 @@ const LandingPage: React.FC = () => {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-black/80 to-black pointer-events-none"></div>
 
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[400px] bg-emerald-600/10 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
+
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 text-xs font-medium mb-8 animate-fade-in-up hover:border-emerald-500/50 transition-colors cursor-default shadow-lg shadow-black/50">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -68,8 +70,8 @@ const LandingPage: React.FC = () => {
           </div>
 
           <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-8 leading-[0.95] min-h-[2em]">
-            Buy a <Typewriter texts={ANIMATED_COUNTRIES} /> WhatsApp <br/>
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600">
+            Buy a <span className="text-emerald-500"><Typewriter texts={ANIMATED_COUNTRIES} /></span> WhatsApp <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-600 drop-shadow-[0_0_30px_rgba(16,185,129,0.3)]">
               Account in 2 Minutes.
             </span>
           </h1>
@@ -125,11 +127,11 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
            <div className="flex flex-col md:flex-row justify-between items-end mb-16">
               <div>
-                <h2 className="text-4xl font-bold text-white mb-3">Supported Platforms</h2>
+                <h2 className="text-4xl font-bold text-white mb-3">Apps You Can Verify</h2>
                 <p className="text-zinc-500 text-lg">Works for WhatsApp, Telegram, TikTok, and more.</p>
               </div>
               <Link to="/app" className="hidden md:flex items-center gap-2 text-emerald-400 hover:text-emerald-300 transition-colors text-sm font-medium">
-                View all 500+ apps <ArrowRight className="w-4 h-4" />
+                View all apps <ArrowRight className="w-4 h-4" />
               </Link>
            </div>
 
@@ -154,7 +156,7 @@ const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-20">
              <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">Simple & Secure</h2>
-             <p className="text-zinc-400 max-w-2xl mx-auto">We use real international phone lines to ensure you get your code. Guaranteed delivery rates for your activation codes.</p>
+             <p className="text-zinc-400 max-w-2xl mx-auto">We use real phone lines to make sure you get your code. It works 100% of the time.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {FEATURES.map((feature, index) => (

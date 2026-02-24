@@ -63,23 +63,23 @@ export const COUNTRIES: Country[] = [
 
 export const FEATURES = [
   {
-    title: 'Concierge Service',
-    description: 'Personalized help via WhatsApp.',
+    title: 'Help on WhatsApp',
+    description: 'Chat with a real person if you need any help.',
     icon: <Zap className="w-5 h-5 text-emerald-400" />
   },
   {
-    title: 'Tier-1 Carriers',
-    description: 'Real SIM cards for guaranteed delivery.',
+    title: 'Real Phone Lines',
+    description: 'We use real sim cards so your code works every time.',
     icon: <Globe className="w-5 h-5 text-emerald-400" />
   },
   {
-    title: 'Encrypted Privacy',
-    description: 'Your identity is protected.',
+    title: 'Private & Secure',
+    description: 'We keep your personal information safe and private.',
     icon: <Lock className="w-5 h-5 text-emerald-400" />
   },
   {
-    title: 'Instant Refunds',
-    description: 'Automatic refunds for failed codes.',
+    title: 'Refund Guarantee',
+    description: 'If you do not get your code, we return your money.',
     icon: <Clock className="w-5 h-5 text-emerald-400" />
   }
 ];
