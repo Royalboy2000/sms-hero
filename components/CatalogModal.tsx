@@ -92,9 +92,9 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
             <h2 className="text-xl font-bold text-white mb-4">How it works</h2>
             <div className="space-y-6">
                 {[
-                    { icon: <Search className="w-4 h-4" />, text: "Search Service", active: step === 1 },
-                    { icon: <Globe className="w-4 h-4" />, text: "Choose Country", active: step === 2 },
-                    { icon: <MessageCircle className="w-4 h-4" />, text: "Get Code on WhatsApp", active: step === 3 }
+                    { icon: <Search className="w-4 h-4" />, text: "Pick an App", active: step === 1 },
+                    { icon: <Globe className="w-4 h-4" />, text: "Pick a Country", active: step === 2 },
+                    { icon: <MessageCircle className="w-4 h-4" />, text: "Get Your Code", active: step === 3 }
                 ].map((s, i) => (
                     <div key={i} className={`flex items-center gap-3 text-sm ${s.active ? 'text-emerald-400 font-bold' : 'text-zinc-500'}`}>
                         <div className={`w-8 h-8 rounded-full border flex items-center justify-center ${s.active ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800'}`}>
@@ -117,10 +117,10 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
           <div className="p-6 border-b border-white/5 flex items-center justify-between">
             <div>
               <h3 className="text-lg font-bold text-white">
-                {step === 1 ? 'Select Application' : `Verify ${selectedService?.name}`}
+                {step === 1 ? 'Pick an App' : `Get Code for ${selectedService?.name}`}
               </h3>
               <p className="text-xs text-zinc-500">
-                {step === 1 ? 'Choose the platform you want to verify.' : 'Select the country for your virtual number.'}
+                {step === 1 ? 'Which app do you want to open?' : 'Which country do you want?'}
               </p>
             </div>
             <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full transition-colors text-zinc-500 hover:text-white">
@@ -136,7 +136,7 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                   <input
                     autoFocus
                     type="text"
-                    placeholder="Search apps (e.g. WhatsApp, PayPal)..."
+                    placeholder="Type app name (WhatsApp, etc)..."
                     value={serviceQuery}
                     onChange={(e) => setServiceQuery(e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-800 rounded-2xl pl-12 pr-4 py-4 text-white focus:outline-none focus:border-emerald-500/50 transition-all shadow-inner"
@@ -179,12 +179,12 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
 
                 <div>
                     <div className="flex items-center justify-between mb-4">
-                        <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Select Region</h4>
+                        <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Choose Country</h4>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-zinc-500" />
                             <input
                                 type="text"
-                                placeholder="Filter countries..."
+                                placeholder="Search country..."
                                 value={countryQuery}
                                 onChange={(e) => setCountryQuery(e.target.value)}
                                 className="bg-zinc-900 border border-zinc-800 rounded-full pl-8 pr-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500/50"
@@ -221,7 +221,7 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                             <CheckCircle2 className="w-6 h-6 text-emerald-500" />
                         </div>
                         <div>
-                            <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Total Price</p>
+                            <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Price to Pay</p>
                             <p className="text-2xl font-mono font-bold text-white">{formatPrice(selectedService)}</p>
                         </div>
                     </div>
@@ -229,7 +229,7 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                         onClick={handleOrder}
                         className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-lg shadow-emerald-900/20 group hover:scale-105"
                     >
-                        Order via WhatsApp
+                        Send Order to WhatsApp
                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                     </button>
                 </div>
