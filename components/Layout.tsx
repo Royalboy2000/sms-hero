@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { MessageSquare, Menu, X, Smartphone } from 'lucide-react';
 import { WHATSAPP_CONTACT, renderIcon } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
+import EmailCapture from './EmailCapture';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -146,6 +147,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </div>
       </footer>
+
+      {/* Email Capture Popup */}
+      <EmailCapture />
 
       {/* Floating WhatsApp Button */}
       <a
