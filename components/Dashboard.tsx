@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, Shield, LayoutDashboard,
   Smartphone, Globe
 } from 'lucide-react';
-import { SERVICES, COUNTRIES } from '../constants';
+import { SERVICES, COUNTRIES, WHATSAPP_CONTACT } from '../constants';
 
 interface Order {
   id: number;
@@ -210,7 +210,7 @@ const Dashboard: React.FC = () => {
                 <p className="text-zinc-500 text-sm">Your current limit is {quota?.allowed || 0} numbers. To increase it, contact our admin via Telegram or WhatsApp with your username: <span className="text-white font-bold">{user.username}</span></p>
             </div>
             <a
-                href={`https://wa.me/${SERVICES[0].id}`}
+                href={`https://wa.me/${WHATSAPP_CONTACT}?text=Hello, my username is ${user.username}. I would like to increase my number generation quota.`}
                 className="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all whitespace-nowrap"
             >
                 Contact Admin

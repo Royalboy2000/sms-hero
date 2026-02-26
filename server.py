@@ -17,7 +17,11 @@ load_dotenv()
 app = Flask(__name__, static_folder='dist' if os.path.exists('dist') else '.')
 CORS(app)
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'your-secret-key-smskenya-2026')
+SECRET_KEY = os.environ.get('SECRET_KEY')
+if not SECRET_KEY:
+    if os.environ.get('FLASK_ENV') == 'production':
+        raise RuntimeError("SECRET_KEY must be set in production!")
+    SECRET_KEY = 'dev-key-smskenya-2026'
 HERO_SMS_API_KEY = os.environ.get('HERO_SMS_API_KEY', '')
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 ADMIN_TELEGRAM_ID = os.environ.get('ADMIN_TELEGRAM_ID', '')

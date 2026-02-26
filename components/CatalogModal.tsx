@@ -274,16 +274,28 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
 
                     <div className="flex-1 w-full sm:w-auto">
                         {genError && (
-                             <p className="text-[10px] text-red-500 mb-2 font-bold bg-red-500/5 p-2 rounded-lg border border-red-500/10">{genError}</p>
+                             <div className="mb-2 bg-red-500/5 p-3 rounded-xl border border-red-500/10">
+                                <p className="text-[10px] text-red-500 font-bold">{genError}</p>
+                                {genError.toLowerCase().includes('quota') && (
+                                    <a
+                                        href={`https://wa.me/${WHATSAPP_CONTACT}?text=Hello, my username is ${user?.username}. I need to increase my number generation quota.`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-emerald-500 hover:underline mt-1 inline-block font-bold"
+                                    >
+                                        Contact Admin on WhatsApp to get credit →
+                                    </a>
+                                )}
+                             </div>
                         )}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4">
                             {user ? (
                                 <button
-                                    disabled={isGenerating}
+                                    disabled={isGenerating || (quota && (quota.allowed - quota.used) <= 0)}
                                     onClick={handleGenerate}
                                     className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105 disabled:opacity-50 disabled:scale-100"
                                 >
-                                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Generate Number Now'}
+                                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : (quota && (quota.allowed - quota.used) <= 0) ? 'No Quota Left' : 'Generate Number Now'}
                                     {!isGenerating && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
                                 </button>
                             ) : (
