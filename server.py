@@ -1,4 +1,5 @@
 import os
+import sys
 import sqlite3
 import jwt
 import datetime
@@ -13,6 +14,34 @@ import telebot
 
 # Load environment variables
 load_dotenv()
+
+def setup_env():
+    env_vars = {
+        'SECRET_KEY': 'Enter a secret key for JWT (e.g., a long random string): ',
+        'HERO_SMS_API_KEY': 'Enter your Hero-SMS API Key: ',
+        'TELEGRAM_BOT_TOKEN': 'Enter your Telegram Bot Token: ',
+        'ADMIN_TELEGRAM_ID': 'Enter your Admin Telegram User ID: '
+    }
+
+    updated = False
+    for var, prompt in env_vars.items():
+        if not os.environ.get(var):
+            try:
+                val = input(prompt).strip()
+                if val:
+                    os.environ[var] = val
+                    with open('.env', 'a') as f:
+                        f.write(f"{var}={val}\n")
+                    updated = True
+            except EOFError:
+                break
+    if updated:
+        print("\nEnvironment variables updated in .env and current session.")
+
+if __name__ == '__main__':
+    # Only run setup if not in a non-interactive shell or specifically requested
+    if sys.stdin.isatty():
+        setup_env()
 
 app = Flask(__name__, static_folder='dist' if os.path.exists('dist') else '.')
 CORS(app)
@@ -368,12 +397,25 @@ def serve(path):
         return send_from_directory(app.static_folder, 'index.html')
 
 if __name__ == '__main__':
-    port = 8000
-    if len(os.sys.argv) > 1:
+    default_port = 8000
+    if len(sys.argv) > 1:
         try:
-            port = int(os.sys.argv[1])
+            default_port = int(sys.argv[1])
         except ValueError:
             pass
 
-    print(f"SMSKenya Server running on http://localhost:{port}")
+    port = default_port
+    if sys.stdin.isatty():
+        try:
+            port_input = input(f"Enter the port you want to use (default {default_port}): ").strip()
+            if port_input:
+                port = int(port_input)
+        except (ValueError, EOFError):
+            print(f"Using port {default_port}")
+            port = default_port
+
+    print(f"\nSMSKenya Server starting...")
+    print(f"Serving from: {os.path.abspath(app.static_folder)}")
+    print(f"URL: http://localhost:{port}")
+
     app.run(host='0.0.0.0', port=port)

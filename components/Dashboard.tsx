@@ -157,7 +157,10 @@ const Dashboard: React.FC = () => {
                         </div>
                         <div>
                             <h4 className="font-bold text-white">{service?.name || order.service_id}</h4>
-                            <p className="text-xs text-zinc-500">{order.timestamp}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                                {country && <span className="text-xs">{country.flag} {country.name}</span>}
+                                <span className="text-[10px] text-zinc-500">{order.timestamp}</span>
+                            </div>
                         </div>
                     </div>
                     <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
