@@ -4,6 +4,8 @@ import Layout from './components/Layout';
 import LandingPage from './components/LandingPage';
 import CatalogModal from './components/CatalogModal';
 import { CurrencyProvider } from './context/CurrencyContext';
+import { AuthProvider } from './context/AuthContext';
+import Dashboard from './components/Dashboard';
 
 const AppContent = () => {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -38,6 +40,7 @@ const AppContent = () => {
   return (
     <Layout>
       <Routes>
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
       <CatalogModal
@@ -52,11 +55,13 @@ const AppContent = () => {
 
 const App = () => {
   return (
-    <CurrencyProvider>
-      <Router>
-        <AppContent />
-      </Router>
-    </CurrencyProvider>
+    <AuthProvider>
+      <CurrencyProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </CurrencyProvider>
+    </AuthProvider>
   );
 };
 

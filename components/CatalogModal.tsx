@@ -7,6 +7,9 @@ import {
 import { SERVICES, COUNTRIES, renderIcon, WHATSAPP_CONTACT } from '../constants';
 import { Service, Country } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAuth } from '../context/AuthContext';
+import { Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface CatalogModalProps {
   isOpen: boolean;
@@ -21,6 +24,7 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
   initialServiceId,
   initialCountryId
 }) => {
+  const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
@@ -28,6 +32,9 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
   const [countryQuery, setCountryQuery] = useState('');
 
   const { currency, formatPrice, detectedCountry } = useCurrency();
+  const { user, token, quota, refreshQuota } = useAuth();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [genError, setGenError] = useState('');
 
   // Reset state when opening
   useEffect(() => {
@@ -73,6 +80,41 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
     const text = `Hello, I would like to buy a verification number.%0A%0AService: ${selectedService.name}%0ACountry: ${selectedCountry.name}%0APrice: ${priceText}`;
     const url = `https://wa.me/${WHATSAPP_CONTACT}?text=${text}`;
     window.open(url, '_blank');
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedService || !selectedCountry || !token) return;
+
+    setIsGenerating(true);
+    setGenError('');
+
+    try {
+      const response = await fetch('/api/generate-number', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          service_id: selectedService.id,
+          country_id: selectedCountry.code
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Redirect to dashboard
+        onClose();
+        navigate('/dashboard');
+      } else {
+        setGenError(data.message || 'Failed to generate number');
+      }
+    } catch (err) {
+      setGenError('Failed to connect to server');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -229,15 +271,35 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                             <p className="text-2xl font-mono font-bold text-white">{formatPrice(selectedService)}</p>
                         </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
-                        <button
-                            onClick={handleOrder}
-                            className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105"
-                        >
-                            Send Order to WhatsApp
-                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                        </button>
-                        <p className="text-[10px] text-zinc-500 font-medium">Pay safely via M-PESA</p>
+
+                    <div className="flex-1 w-full sm:w-auto">
+                        {genError && (
+                             <p className="text-[10px] text-red-500 mb-2 font-bold bg-red-500/5 p-2 rounded-lg border border-red-500/10">{genError}</p>
+                        )}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4">
+                            {user ? (
+                                <button
+                                    disabled={isGenerating}
+                                    onClick={handleGenerate}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105 disabled:opacity-50 disabled:scale-100"
+                                >
+                                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Generate Number Now'}
+                                    {!isGenerating && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+                                </button>
+                            ) : (
+                                <button
+                                    onClick={handleOrder}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105"
+                                >
+                                    Send Order to WhatsApp
+                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            )}
+                            <div className="flex flex-col items-center sm:items-end gap-1">
+                                <p className="text-[10px] text-zinc-500 font-medium">Pay safely via M-PESA</p>
+                                {user && <p className="text-[10px] text-emerald-500 font-bold">Quota: {(quota?.allowed || 0) - (quota?.used || 0)} left</p>}
+                            </div>
+                        </div>
                     </div>
                 </div>
              ) : (
