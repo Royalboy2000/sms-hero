@@ -619,37 +619,44 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
             conn.close()
 
-            text = f"User: {user['username']}\nQuota: {quota['used_numbers']}/{quota['allowed_numbers']}"
+            text = f"👤 User: {user['username']}\n📊 Quota: {quota['used_numbers']} used / {quota['allowed_numbers']} allowed"
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("Add Quota (+5)", callback_data=f"quota_{user_id}_5"))
-            markup.add(InlineKeyboardButton("Whitelist Service/Country", callback_data=f"whitelist_{user_id}"))
+            markup.add(InlineKeyboardButton("⚙️ Set Allowed Quota", callback_data=f"askquota_{user_id}"))
+            markup.add(InlineKeyboardButton("🛡️ Manage Whitelist", callback_data=f"whitelist_{user_id}"))
             markup.add(InlineKeyboardButton("« Back to Users", callback_data="list_users"))
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-        elif call.data.startswith("quota_"):
-            _, user_id, amount = call.data.split("_")
-            conn = get_db_connection()
-            conn.execute('UPDATE quotas SET allowed_numbers = allowed_numbers + ? WHERE user_id = ?', (amount, user_id))
-            conn.commit()
-            conn.close()
-            bot.answer_callback_query(call.id, f"Added {amount} to quota")
-            # Refresh user view
-            callback_query(type('obj', (object,), {'data': f'user_{user_id}', 'from_user': call.from_user, 'message': call.message, 'id': call.id}))
+        elif call.data.startswith("askquota_"):
+            user_id = call.data.split("_")[1]
+            msg = bot.send_message(call.message.chat.id, "Enter the TOTAL number of allowed generations for this user:")
+            bot.register_next_step_handler(msg, process_set_quota, user_id)
 
         elif call.data.startswith("whitelist_"):
-            user_id = call.data.split("_")[1]
-            # Show existing whitelist and option to add
+            user_id = int(call.data.split("_")[1])
+            page = int(call.data.split("_")[2]) if len(call.data.split("_")) > 2 else 0
+            per_page = 5
+
             conn = get_db_connection()
-            whitelist = conn.execute('SELECT * FROM user_whitelist WHERE user_id = ?', (user_id,)).fetchall()
+            whitelist = conn.execute('SELECT * FROM user_whitelist WHERE user_id = ? LIMIT ? OFFSET ?',
+                                   (user_id, per_page, page * per_page)).fetchall()
+            total = conn.execute('SELECT COUNT(*) FROM user_whitelist WHERE user_id = ?', (user_id,)).fetchone()[0]
             conn.close()
 
-            text = "Current Whitelist:\n"
+            text = f"🛡️ Whitelist for User ID {user_id} (Page {page+1}):\n"
             markup = InlineKeyboardMarkup()
             for entry in whitelist:
-                text += f"- {entry['service_id']} in {entry['country_id']}\n"
-                markup.add(InlineKeyboardButton(f"❌ {entry['service_id']}@{entry['country_id']}", callback_data=f"rmwl_{entry['id']}"))
+                markup.add(InlineKeyboardButton(f"❌ Remove {entry['service_id']}@{entry['country_id']}",
+                                               callback_data=f"rmwl_{entry['id']}_{page}"))
 
-            markup.add(InlineKeyboardButton("➕ Add Pair", callback_data=f"addwl_{user_id}"))
+            nav_buttons = []
+            if page > 0:
+                nav_buttons.append(InlineKeyboardButton("« Prev", callback_data=f"whitelist_{user_id}_{page-1}"))
+            if (page + 1) * per_page < total:
+                nav_buttons.append(InlineKeyboardButton("Next »", callback_data=f"whitelist_{user_id}_{page+1}"))
+            if nav_buttons:
+                markup.add(*nav_buttons)
+
+            markup.add(InlineKeyboardButton("➕ Add New Pair", callback_data=f"addwl_{user_id}"))
             markup.add(InlineKeyboardButton("« Back to User", callback_data=f"user_{user_id}"))
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
@@ -662,14 +669,16 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
 
         elif call.data.startswith("rmwl_"):
             wl_id = call.data.split("_")[1]
+            page = call.data.split("_")[2] if len(call.data.split("_")) > 2 else 0
             conn = get_db_connection()
             row = conn.execute('SELECT user_id FROM user_whitelist WHERE id = ?', (wl_id,)).fetchone()
             user_id = row['user_id']
             conn.execute('DELETE FROM user_whitelist WHERE id = ?', (wl_id,))
             conn.commit()
             conn.close()
-            bot.answer_callback_query(call.id, "Removed from whitelist")
-            callback_query(type('obj', (object,), {'data': f'whitelist_{user_id}', 'from_user': call.from_user, 'message': call.message, 'id': call.id}))
+            bot.answer_callback_query(call.id, "✅ Removed from whitelist")
+            # Stay on the same page
+            callback_query(type('obj', (object,), {'data': f'whitelist_{user_id}_{page}', 'from_user': call.from_user, 'message': call.message, 'id': call.id}))
 
         elif call.data == "manage_tokens":
             markup = InlineKeyboardMarkup()
@@ -695,17 +704,59 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             markup.add(InlineKeyboardButton("🏷️ View Provider Prices", callback_data="view_prices"))
             bot.edit_message_text("SMSKenya Admin Panel:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-    def process_add_whitelist(message, user_id):
+        elif call.data == "view_prices":
+            # Start a flow to ask for service and country
+            msg = bot.send_message(call.message.chat.id, "🔍 Send provider service and country IDs for pricing (e.g., `wa 8`).")
+            bot.register_next_step_handler(msg, process_check_prices)
+
+    def process_set_quota(message, user_id):
         try:
-            service, country = message.text.split()
+            amount = int(message.text.strip())
             conn = get_db_connection()
-            conn.execute('INSERT OR IGNORE INTO user_whitelist (user_id, service_id, country_id) VALUES (?, ?, ?)',
-                         (user_id, service, country))
+            conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (amount, user_id))
             conn.commit()
             conn.close()
-            bot.reply_to(message, f"Added {service}@{country} to whitelist.")
+            bot.reply_to(message, f"✅ Quota set to {amount} for user ID {user_id}")
+        except ValueError:
+            bot.reply_to(message, "❌ Invalid number. Please enter an integer.")
+
+    def process_check_prices(message):
+        try:
+            parts = message.text.split()
+            if len(parts) == 2:
+                service, country = parts
+                res = call_hero_api('getPrices', service=service, country=country)
+
+                # Format JSON response if it is one
+                if isinstance(res, list) and len(res) > 0:
+                    data = res[0].get(service, {})
+                    cost = data.get('cost', 'N/A')
+                    count = data.get('count', 'N/A')
+                    text = f"🏷️ Provider Price for {service}@{country}:\n💰 Cost: {cost}\n📦 Available: {count}"
+                else:
+                    text = f"📝 Provider Response: {res}"
+
+                bot.reply_to(message, text)
+            else:
+                bot.reply_to(message, "❌ Format: `service country` (e.g., `wa 8`)")
         except Exception as e:
-            bot.reply_to(message, f"Error: {str(e)}. Use format: service country")
+            bot.reply_to(message, f"❌ Error: {str(e)}")
+
+    def process_add_whitelist(message, user_id):
+        try:
+            parts = message.text.split()
+            if len(parts) == 2:
+                service, country = parts
+                conn = get_db_connection()
+                conn.execute('INSERT OR IGNORE INTO user_whitelist (user_id, service_id, country_id) VALUES (?, ?, ?)',
+                             (user_id, service, country))
+                conn.commit()
+                conn.close()
+                bot.reply_to(message, f"✅ Added {service}@{country} to whitelist.")
+            else:
+                bot.reply_to(message, "❌ Format: `service country` (e.g., `wa KE`)")
+        except Exception as e:
+            bot.reply_to(message, f"❌ Error: {str(e)}")
 
     def run_bot():
         print("Starting Telegram Bot...")
