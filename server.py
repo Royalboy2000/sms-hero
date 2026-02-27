@@ -67,7 +67,7 @@ def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
 
-    # Users table
+    # Create tables if not exist
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,7 +92,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS orders (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL,
+        user_id INTEGER,
         service_id TEXT NOT NULL,
         country_id TEXT NOT NULL,
         phone_number TEXT,
@@ -100,7 +100,41 @@ def init_db():
         status TEXT DEFAULT 'waiting',
         sms_code TEXT,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        token TEXT,
         FOREIGN KEY (user_id) REFERENCES users (id)
+    )
+    ''')
+
+    # Whitelist table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS user_whitelist (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        service_id TEXT NOT NULL,
+        country_id TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (id),
+        UNIQUE(user_id, service_id, country_id)
+    )
+    ''')
+
+    # Direct purchase tokens
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS purchase_tokens (
+        token TEXT PRIMARY KEY,
+        service_id TEXT,
+        country_id TEXT,
+        is_used INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    # Mapping table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS mappings (
+        frontend_id TEXT NOT NULL,
+        provider_id TEXT NOT NULL,
+        type TEXT NOT NULL, -- 'service' or 'country'
+        PRIMARY KEY (frontend_id, type)
     )
     ''')
 
@@ -111,6 +145,27 @@ def init_db():
         value TEXT
     )
     ''')
+
+    conn.commit()
+
+    # Seed initial mappings based on constants.tsx and common SMS-Activate IDs
+    initial_country_mappings = {
+        'KE': '8', 'US': '12', 'GB': '16', 'CA': '36', 'ZA': '31',
+        'AE': '95', 'CN': '3', 'DE': '43', 'IN': '22', 'NG': '19',
+        'AU': '175', 'FR': '78', 'NL': '48', 'BR': '73', 'RU': '0',
+        'TZ': '51', 'UG': '75', 'SA': '53', 'QA': '111', 'JP': '112',
+        'KR': '113', 'SG': '47', 'TR': '62', 'ES': '56', 'IT': '88',
+        'SE': '46', 'CH': '42', 'PL': '15', 'ID': '6', 'PH': '4'
+    }
+    initial_service_mappings = {
+        'wa': 'wa', 'tg': 'tg', 'ig': 'ig', 'fb': 'fb', 'goo': 'go',
+        'tt': 'lf', 'tw': 'tw', 'li': 'ot', 'pp': 'pp', 'airbnb': 'am', 'bolt': 'ol'
+    }
+
+    for fid, pid in initial_country_mappings.items():
+        cursor.execute('INSERT OR IGNORE INTO mappings (frontend_id, provider_id, type) VALUES (?, ?, ?)', (fid, pid, 'country'))
+    for fid, pid in initial_service_mappings.items():
+        cursor.execute('INSERT OR IGNORE INTO mappings (frontend_id, provider_id, type) VALUES (?, ?, ?)', (fid, pid, 'service'))
 
     conn.commit()
     conn.close()
@@ -235,43 +290,70 @@ def call_hero_api(action, **kwargs):
     params.update(kwargs)
     try:
         response = requests.get(BASE_API_URL, params=params)
+        if action.endswith('V2') or action in ['getCountries', 'getServicesList', 'getPrices']:
+            try:
+                return response.json()
+            except:
+                return response.text
         return response.text
     except Exception as e:
-        return f"ERROR: {str(e)}"
+        return {"error": str(e)} if action.endswith('V2') else f"ERROR: {str(e)}"
+
+def get_mapping(frontend_id, mapping_type):
+    conn = get_db_connection()
+    row = conn.execute('SELECT provider_id FROM mappings WHERE frontend_id = ? AND type = ?', (frontend_id, mapping_type)).fetchone()
+    conn.close()
+    return row['provider_id'] if row else frontend_id
+
+def set_mapping(frontend_id, provider_id, mapping_type):
+    conn = get_db_connection()
+    conn.execute('INSERT OR REPLACE INTO mappings (frontend_id, provider_id, type) VALUES (?, ?, ?)',
+                 (frontend_id, provider_id, mapping_type))
+    conn.commit()
+    conn.close()
 
 @app.route('/api/generate-number', methods=['POST'])
 @token_required
 def generate_number(current_user):
     data = request.get_json()
-    service_id = data.get('service_id')
-    country_id = data.get('country_id')
+    service_id = data.get('service_id') # e.g. 'wa'
+    country_id = data.get('country_id') # e.g. 'KE'
 
     if not service_id or not country_id:
         return jsonify({'message': 'Service ID and Country ID are required!'}), 400
 
     conn = get_db_connection()
+    # Check Whitelist
+    whitelisted = conn.execute('SELECT 1 FROM user_whitelist WHERE user_id = ? AND service_id = ? AND country_id = ?',
+                              (current_user['id'], service_id, country_id)).fetchone()
+    if not whitelisted:
+        conn.close()
+        return jsonify({'message': f'Service {service_id} for country {country_id} is not whitelisted for your account.'}), 403
+
     quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (current_user['id'],)).fetchone()
 
     if quota['used_numbers'] >= quota['allowed_numbers']:
         conn.close()
         return jsonify({'message': 'Quota exceeded! Please contact admin to increase your limit.'}), 403
 
-    # Call Hero-SMS API
-    # action=getNumber, service=service_id, country=country_id
-    # Result format: ACCESS_NUMBER:ID:NUMBER
-    res = call_hero_api('getNumber', service=service_id, country=country_id)
+    # Map frontend IDs to Provider IDs
+    p_service = get_mapping(service_id, 'service')
+    p_country = get_mapping(country_id, 'country')
+
+    # Call Hero-SMS API V2
+    res = call_hero_api('getNumberV2', service=p_service, country=p_country)
 
     # For testing without real API key, allow simulation
     if not HERO_SMS_API_KEY:
         import random
-        order_id = str(random.randint(100000, 999999))
-        phone_number = f"+123456789{random.randint(10, 99)}"
-        res = f"ACCESS_NUMBER:{order_id}:{phone_number}"
+        res = {
+            "activationId": str(random.randint(100000, 999999)),
+            "phoneNumber": f"123456789{random.randint(10, 99)}"
+        }
 
-    if res.startswith('ACCESS_NUMBER'):
-        parts = res.split(':')
-        order_id = parts[1]
-        phone_number = parts[2]
+    if isinstance(res, dict) and 'activationId' in res:
+        order_id = res['activationId']
+        phone_number = res['phoneNumber']
 
         cursor = conn.cursor()
         cursor.execute('''
@@ -290,7 +372,8 @@ def generate_number(current_user):
         })
     else:
         conn.close()
-        return jsonify({'message': 'Failed to generate number from provider', 'provider_response': res}), 500
+        msg = res.get('details', 'Failed to generate number from provider') if isinstance(res, dict) else str(res)
+        return jsonify({'message': msg, 'provider_response': res}), 500
 
 @app.route('/api/orders', methods=['GET'])
 @token_required
@@ -301,31 +384,180 @@ def get_orders(current_user):
 
     return jsonify([dict(order) for order in orders])
 
-@app.route('/api/order/<order_id>/status', methods=['GET'])
-@token_required
-def get_order_status(current_user, order_id):
-    # Call Hero-SMS API to check status
-    # action=getStatus, id=order_id
-    res = call_hero_api('getStatus', id=order_id)
+@app.route('/api/direct/generate', methods=['POST'])
+def direct_generate():
+    data = request.get_json()
+    token = data.get('token')
+    service_id = data.get('service_id')
+    country_id = data.get('country_id')
+
+    if not token or not service_id or not country_id:
+        return jsonify({'message': 'Missing parameters!'}), 400
+
+    conn = get_db_connection()
+    # Validate token
+    p_token = conn.execute('SELECT * FROM purchase_tokens WHERE token = ? AND is_used = 0', (token,)).fetchone()
+    if not p_token:
+        conn.close()
+        return jsonify({'message': 'Invalid or expired token!'}), 403
+
+    # Map frontend IDs to Provider IDs
+    p_service = get_mapping(service_id, 'service')
+    p_country = get_mapping(country_id, 'country')
+
+    # Call Hero-SMS API V2
+    res = call_hero_api('getNumberV2', service=p_service, country=p_country)
+
+    # For testing without real API key, allow simulation
+    if not HERO_SMS_API_KEY:
+        import random
+        res = {
+            "activationId": str(random.randint(100000, 999999)),
+            "phoneNumber": f"123456789{random.randint(10, 99)}"
+        }
+
+    if isinstance(res, dict) and 'activationId' in res:
+        order_id = res['activationId']
+        phone_number = res['phoneNumber']
+
+        cursor = conn.cursor()
+        cursor.execute('''
+            INSERT INTO orders (service_id, country_id, phone_number, order_id_provider, status, token)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (service_id, country_id, phone_number, order_id, 'waiting', token))
+
+        # Mark token as used
+        cursor.execute('UPDATE purchase_tokens SET is_used = 1, service_id = ?, country_id = ? WHERE token = ?',
+                       (service_id, country_id, token))
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'order_id': order_id,
+            'phone_number': phone_number,
+            'status': 'waiting'
+        })
+    else:
+        conn.close()
+        msg = res.get('details', 'Failed to generate number from provider') if isinstance(res, dict) else str(res)
+        return jsonify({'message': msg, 'provider_response': res}), 500
+
+@app.route('/api/direct/status', methods=['GET'])
+def direct_status():
+    token = request.args.get('token')
+    order_id = request.args.get('order_id')
+
+    if not token or not order_id:
+        return jsonify({'message': 'Missing parameters!'}), 400
+
+    # Verify order belongs to token
+    conn = get_db_connection()
+    order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ? AND token = ?', (order_id, token)).fetchone()
+    conn.close()
+
+    if not order:
+        return jsonify({'message': 'Order not found for this token!'}), 404
+
+    # Reuse status logic
+    res = call_hero_api('getStatusV2', id=order_id)
 
     # Simulation for testing
     if not HERO_SMS_API_KEY:
         import random
         if random.random() > 0.7:
-             res = f"STATUS_OK:{random.randint(100000, 999999)}"
+             res = {"sms": {"code": str(random.randint(100000, 999999))}}
         else:
              res = "STATUS_WAIT_CODE"
 
-    # STATUS_WAIT_CODE, STATUS_OK:CODE, etc.
     status = 'waiting'
     sms_code = None
 
-    if res.startswith('STATUS_OK'):
+    if isinstance(res, dict) and res.get('sms') and res['sms'].get('code'):
         status = 'received'
-        sms_code = res.split(':')[1]
-    elif res.startswith('STATUS_WAIT_CODE'):
+        sms_code = res['sms']['code']
+    elif res == "STATUS_WAIT_CODE":
         status = 'waiting'
-    elif res.startswith('STATUS_CANCEL'):
+    elif res == "STATUS_CANCEL" or (isinstance(res, dict) and res.get('title') == 'CANCELED'):
+        status = 'cancelled'
+
+    # Update local DB
+    conn = get_db_connection()
+    conn.execute('UPDATE orders SET status = ?, sms_code = ? WHERE order_id_provider = ? AND token = ?',
+                 (status, sms_code, order_id, token))
+    conn.commit()
+    conn.close()
+
+    return jsonify({
+        'order_id': order_id,
+        'status': status,
+        'sms_code': sms_code
+    })
+
+@app.route('/api/order/<order_id>/cancel', methods=['POST'])
+@token_required
+def cancel_order(current_user, order_id):
+    # status 8 — cancel activation (return money)
+    res = call_hero_api('setStatus', id=order_id, status=8)
+
+    if res == "ACCESS_CANCEL" or not HERO_SMS_API_KEY: # Allow simulation
+        conn = get_db_connection()
+        order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ? AND user_id = ?', (order_id, current_user['id'])).fetchone()
+        if order and order['status'] == 'waiting':
+             cursor = conn.cursor()
+             cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+             cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (current_user['id'],))
+             conn.commit()
+        conn.close()
+        return jsonify({'message': 'Order cancelled and quota refunded.'})
+    else:
+        return jsonify({'message': f'Failed to cancel order: {res}'}), 400
+
+@app.route('/api/direct/cancel', methods=['POST'])
+def direct_cancel():
+    data = request.get_json()
+    token = data.get('token')
+    order_id = data.get('order_id')
+
+    if not token or not order_id:
+        return jsonify({'message': 'Missing parameters!'}), 400
+
+    # status 8 — cancel activation (return money)
+    res = call_hero_api('setStatus', id=order_id, status=8)
+
+    if res == "ACCESS_CANCEL" or not HERO_SMS_API_KEY: # Allow simulation
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ? AND token = ?', ('cancelled', order_id, token))
+        cursor.execute('UPDATE purchase_tokens SET is_used = 0 WHERE token = ?', (token,))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Order cancelled. You can try another number.'})
+    else:
+        return jsonify({'message': f'Failed to cancel order: {res}'}), 400
+
+@app.route('/api/order/<order_id>/status', methods=['GET'])
+@token_required
+def get_order_status(current_user, order_id):
+    # Call Hero-SMS API V2
+    res = call_hero_api('getStatusV2', id=order_id)
+
+    # Simulation for testing
+    if not HERO_SMS_API_KEY:
+        import random
+        if random.random() > 0.7:
+             res = {"sms": {"code": str(random.randint(100000, 999999))}}
+        else:
+             res = "STATUS_WAIT_CODE"
+
+    status = 'waiting'
+    sms_code = None
+
+    if isinstance(res, dict) and res.get('sms') and res['sms'].get('code'):
+        status = 'received'
+        sms_code = res['sms']['code']
+    elif res == "STATUS_WAIT_CODE":
+        status = 'waiting'
+    elif res == "STATUS_CANCEL" or (isinstance(res, dict) and res.get('title') == 'CANCELED'):
         status = 'cancelled'
 
     # Update local DB
@@ -343,40 +575,188 @@ def get_order_status(current_user, order_id):
 
 # --- Telegram Bot ---
 
-if TELEGRAM_BOT_TOKEN:
+if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
     bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
+    from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-    @bot.message_handler(commands=['start', 'help'])
+    @bot.message_handler(commands=['start', 'menu'])
     def send_welcome(message):
-        bot.reply_to(message, "SMSKenya Admin Bot. Use /approve <username> <amount> to increase quota.")
-
-    @bot.message_handler(commands=['approve'])
-    def approve_quota(message):
-        # Security: only admin can use this command
         if str(message.from_user.id) != ADMIN_TELEGRAM_ID:
             bot.reply_to(message, "Unauthorized.")
             return
 
-        try:
-            args = message.text.split()
-            if len(args) != 3:
-                bot.reply_to(message, "Usage: /approve <username> <amount>")
-                return
+        markup = InlineKeyboardMarkup()
+        markup.add(InlineKeyboardButton("Manage Users", callback_data="list_users"))
+        markup.add(InlineKeyboardButton("Direct Purchase Tokens", callback_data="manage_tokens"))
+        bot.send_message(message.chat.id, "SMSKenya Admin Panel:", reply_markup=markup)
 
-            username = args[1]
-            amount = int(args[2])
+    @bot.callback_query_handler(func=lambda call: True)
+    def callback_query(call):
+        if str(call.from_user.id) != ADMIN_TELEGRAM_ID:
+            bot.answer_callback_query(call.id, "Unauthorized")
+            return
+
+        if call.data == "check_balance":
+            res = call_hero_api('getBalance')
+            bot.answer_callback_query(call.id, f"Balance: {res}")
+            # Refresh menu to show balance in text maybe? Or just alert.
+
+        elif call.data == "list_users":
+            conn = get_db_connection()
+            users = conn.execute('SELECT id, username FROM users').fetchall()
+            conn.close()
+
+            markup = InlineKeyboardMarkup()
+            for user in users:
+                markup.add(InlineKeyboardButton(user['username'], callback_data=f"user_{user['id']}"))
+            markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+            bot.edit_message_text("Select a user:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("user_"):
+            user_id = call.data.split("_")[1]
+            conn = get_db_connection()
+            user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+            quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+            conn.close()
+
+            text = f"👤 User: {user['username']}\n📊 Quota: {quota['used_numbers']} used / {quota['allowed_numbers']} allowed"
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("⚙️ Set Allowed Quota", callback_data=f"askquota_{user_id}"))
+            markup.add(InlineKeyboardButton("🛡️ Manage Whitelist", callback_data=f"whitelist_{user_id}"))
+            markup.add(InlineKeyboardButton("« Back to Users", callback_data="list_users"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("askquota_"):
+            user_id = call.data.split("_")[1]
+            msg = bot.send_message(call.message.chat.id, "Enter the TOTAL number of allowed generations for this user:")
+            bot.register_next_step_handler(msg, process_set_quota, user_id)
+
+        elif call.data.startswith("whitelist_"):
+            user_id = int(call.data.split("_")[1])
+            page = int(call.data.split("_")[2]) if len(call.data.split("_")) > 2 else 0
+            per_page = 5
 
             conn = get_db_connection()
-            user = conn.execute('SELECT id FROM users WHERE username = ?', (username,)).fetchone()
-            if user:
-                conn.execute('UPDATE quotas SET allowed_numbers = allowed_numbers + ? WHERE user_id = ?', (amount, user['id']))
-                conn.commit()
-                bot.reply_to(message, f"Approved {amount} more numbers for {username}.")
-            else:
-                bot.reply_to(message, f"User {username} not found.")
+            whitelist = conn.execute('SELECT * FROM user_whitelist WHERE user_id = ? LIMIT ? OFFSET ?',
+                                   (user_id, per_page, page * per_page)).fetchall()
+            total = conn.execute('SELECT COUNT(*) FROM user_whitelist WHERE user_id = ?', (user_id,)).fetchone()[0]
             conn.close()
+
+            text = f"🛡️ Whitelist for User ID {user_id} (Page {page+1}):\n"
+            markup = InlineKeyboardMarkup()
+            for entry in whitelist:
+                markup.add(InlineKeyboardButton(f"❌ Remove {entry['service_id']}@{entry['country_id']}",
+                                               callback_data=f"rmwl_{entry['id']}_{page}"))
+
+            nav_buttons = []
+            if page > 0:
+                nav_buttons.append(InlineKeyboardButton("« Prev", callback_data=f"whitelist_{user_id}_{page-1}"))
+            if (page + 1) * per_page < total:
+                nav_buttons.append(InlineKeyboardButton("Next »", callback_data=f"whitelist_{user_id}_{page+1}"))
+            if nav_buttons:
+                markup.add(*nav_buttons)
+
+            markup.add(InlineKeyboardButton("➕ Add New Pair", callback_data=f"addwl_{user_id}"))
+            markup.add(InlineKeyboardButton("« Back to User", callback_data=f"user_{user_id}"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("addwl_"):
+            # Instead of asking for text, let's offer buttons for common services/countries or ask for text if preferred
+            # For brevity and flexibility, let's stick to text but improve the prompt
+            user_id = call.data.split("_")[1]
+            msg = bot.send_message(call.message.chat.id, "Send service and country ID (frontend IDs) separated by space (e.g., `wa KE` or `tg US`).\n\nCommon Services: `wa`, `tg`, `ig`, `fb`, `goo`, `tt`, `pp`.\nCommon Countries: `KE`, `US`, `GB`, `CA`, `DE`.", parse_mode="Markdown")
+            bot.register_next_step_handler(msg, process_add_whitelist, user_id)
+
+        elif call.data.startswith("rmwl_"):
+            wl_id = call.data.split("_")[1]
+            page = call.data.split("_")[2] if len(call.data.split("_")) > 2 else 0
+            conn = get_db_connection()
+            row = conn.execute('SELECT user_id FROM user_whitelist WHERE id = ?', (wl_id,)).fetchone()
+            user_id = row['user_id']
+            conn.execute('DELETE FROM user_whitelist WHERE id = ?', (wl_id,))
+            conn.commit()
+            conn.close()
+            bot.answer_callback_query(call.id, "✅ Removed from whitelist")
+            # Stay on the same page
+            callback_query(type('obj', (object,), {'data': f'whitelist_{user_id}_{page}', 'from_user': call.from_user, 'message': call.message, 'id': call.id}))
+
+        elif call.data == "manage_tokens":
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("Generate New Token", callback_data="gen_token"))
+            markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+            bot.edit_message_text("Manage Direct Purchase Tokens:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data == "gen_token":
+            import secrets
+            token = secrets.token_urlsafe(16)
+            conn = get_db_connection()
+            conn.execute('INSERT INTO purchase_tokens (token) VALUES (?)', (token,))
+            conn.commit()
+            conn.close()
+            bot.send_message(call.message.chat.id, f"Generated Token:\n`{token}`", parse_mode="Markdown")
+            bot.answer_callback_query(call.id, "Token Generated")
+
+        elif call.data == "main_menu":
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("Manage Users", callback_data="list_users"))
+            markup.add(InlineKeyboardButton("Direct Purchase Tokens", callback_data="manage_tokens"))
+            markup.add(InlineKeyboardButton("💰 Check HeroSMS Balance", callback_data="check_balance"))
+            markup.add(InlineKeyboardButton("🏷️ View Provider Prices", callback_data="view_prices"))
+            bot.edit_message_text("SMSKenya Admin Panel:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data == "view_prices":
+            # Start a flow to ask for service and country
+            msg = bot.send_message(call.message.chat.id, "🔍 Send provider service and country IDs for pricing (e.g., `wa 8`).")
+            bot.register_next_step_handler(msg, process_check_prices)
+
+    def process_set_quota(message, user_id):
+        try:
+            amount = int(message.text.strip())
+            conn = get_db_connection()
+            conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (amount, user_id))
+            conn.commit()
+            conn.close()
+            bot.reply_to(message, f"✅ Quota set to {amount} for user ID {user_id}")
+        except ValueError:
+            bot.reply_to(message, "❌ Invalid number. Please enter an integer.")
+
+    def process_check_prices(message):
+        try:
+            parts = message.text.split()
+            if len(parts) == 2:
+                service, country = parts
+                res = call_hero_api('getPrices', service=service, country=country)
+
+                # Format JSON response if it is one
+                if isinstance(res, list) and len(res) > 0:
+                    data = res[0].get(service, {})
+                    cost = data.get('cost', 'N/A')
+                    count = data.get('count', 'N/A')
+                    text = f"🏷️ Provider Price for {service}@{country}:\n💰 Cost: {cost}\n📦 Available: {count}"
+                else:
+                    text = f"📝 Provider Response: {res}"
+
+                bot.reply_to(message, text)
+            else:
+                bot.reply_to(message, "❌ Format: `service country` (e.g., `wa 8`)")
         except Exception as e:
-            bot.reply_to(message, f"Error: {str(e)}")
+            bot.reply_to(message, f"❌ Error: {str(e)}")
+
+    def process_add_whitelist(message, user_id):
+        try:
+            parts = message.text.split()
+            if len(parts) == 2:
+                service, country = parts
+                conn = get_db_connection()
+                conn.execute('INSERT OR IGNORE INTO user_whitelist (user_id, service_id, country_id) VALUES (?, ?, ?)',
+                             (user_id, service, country))
+                conn.commit()
+                conn.close()
+                bot.reply_to(message, f"✅ Added {service}@{country} to whitelist.")
+            else:
+                bot.reply_to(message, "❌ Format: `service country` (e.g., `wa KE`)")
+        except Exception as e:
+            bot.reply_to(message, f"❌ Error: {str(e)}")
 
     def run_bot():
         print("Starting Telegram Bot...")

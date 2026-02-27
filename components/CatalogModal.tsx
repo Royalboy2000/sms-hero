@@ -286,6 +286,16 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
                                         Contact Admin on WhatsApp to get credit →
                                     </a>
                                 )}
+                                {genError.toLowerCase().includes('whitelist') && (
+                                    <a
+                                        href={`https://wa.me/${WHATSAPP_CONTACT}?text=Hello, I would like to whitelist ${selectedService?.name} in ${selectedCountry?.name} for my account (${user?.username}).`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-emerald-500 hover:underline mt-1 inline-block font-bold"
+                                    >
+                                        Ask Admin to Whitelist this Service →
+                                    </a>
+                                )}
                              </div>
                         )}
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4">

@@ -6,6 +6,7 @@ import CatalogModal from './components/CatalogModal';
 import { CurrencyProvider } from './context/CurrencyContext';
 import { AuthProvider } from './context/AuthContext';
 import Dashboard from './components/Dashboard';
+import DirectPurchase from './components/DirectPurchase';
 
 const AppContent = () => {
   const [isCatalogOpen, setIsCatalogOpen] = useState(false);
@@ -41,6 +42,7 @@ const AppContent = () => {
     <Layout>
       <Routes>
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/direct" element={<DirectPurchase />} />
         <Route path="*" element={<LandingPage />} />
       </Routes>
       <CatalogModal
