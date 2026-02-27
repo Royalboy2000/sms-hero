@@ -66,7 +66,7 @@ const LandingPage: React.FC = () => {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            Proudly Kenyan • Based in Mombasa
+            Proudly Kenyan • Based in Germany
           </div>
 
           <h1 className="text-5xl md:text-8xl font-bold tracking-tighter text-white mb-8 leading-[0.95] min-h-[2em]">
@@ -224,7 +224,7 @@ const LandingPage: React.FC = () => {
                            </div>
                            <div>
                               <h4 className="text-white font-bold">Local Support</h4>
-                              <p className="text-sm text-zinc-500 mt-1">Based in Mombasa. Real human support via WhatsApp.</p>
+                              <p className="text-sm text-zinc-500 mt-1">Based in Germany. Real human support via WhatsApp.</p>
                            </div>
                         </div>
                      </div>
