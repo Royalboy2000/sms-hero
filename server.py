@@ -493,6 +493,48 @@ def direct_status():
         'sms_code': sms_code
     })
 
+@app.route('/api/order/<order_id>/cancel', methods=['POST'])
+@token_required
+def cancel_order(current_user, order_id):
+    # status 8 — cancel activation (return money)
+    res = call_hero_api('setStatus', id=order_id, status=8)
+
+    if res == "ACCESS_CANCEL" or not HERO_SMS_API_KEY: # Allow simulation
+        conn = get_db_connection()
+        order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ? AND user_id = ?', (order_id, current_user['id'])).fetchone()
+        if order and order['status'] == 'waiting':
+             cursor = conn.cursor()
+             cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+             cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (current_user['id'],))
+             conn.commit()
+        conn.close()
+        return jsonify({'message': 'Order cancelled and quota refunded.'})
+    else:
+        return jsonify({'message': f'Failed to cancel order: {res}'}), 400
+
+@app.route('/api/direct/cancel', methods=['POST'])
+def direct_cancel():
+    data = request.get_json()
+    token = data.get('token')
+    order_id = data.get('order_id')
+
+    if not token or not order_id:
+        return jsonify({'message': 'Missing parameters!'}), 400
+
+    # status 8 — cancel activation (return money)
+    res = call_hero_api('setStatus', id=order_id, status=8)
+
+    if res == "ACCESS_CANCEL" or not HERO_SMS_API_KEY: # Allow simulation
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ? AND token = ?', ('cancelled', order_id, token))
+        cursor.execute('UPDATE purchase_tokens SET is_used = 0 WHERE token = ?', (token,))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Order cancelled. You can try another number.'})
+    else:
+        return jsonify({'message': f'Failed to cancel order: {res}'}), 400
+
 @app.route('/api/order/<order_id>/status', methods=['GET'])
 @token_required
 def get_order_status(current_user, order_id):
@@ -554,7 +596,12 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             bot.answer_callback_query(call.id, "Unauthorized")
             return
 
-        if call.data == "list_users":
+        if call.data == "check_balance":
+            res = call_hero_api('getBalance')
+            bot.answer_callback_query(call.id, f"Balance: {res}")
+            # Refresh menu to show balance in text maybe? Or just alert.
+
+        elif call.data == "list_users":
             conn = get_db_connection()
             users = conn.execute('SELECT id, username FROM users').fetchall()
             conn.close()
@@ -607,8 +654,10 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
         elif call.data.startswith("addwl_"):
+            # Instead of asking for text, let's offer buttons for common services/countries or ask for text if preferred
+            # For brevity and flexibility, let's stick to text but improve the prompt
             user_id = call.data.split("_")[1]
-            msg = bot.send_message(call.message.chat.id, "Send service and country ID (frontend IDs) separated by space (e.g., wa KE):")
+            msg = bot.send_message(call.message.chat.id, "Send service and country ID (frontend IDs) separated by space (e.g., `wa KE` or `tg US`).\n\nCommon Services: `wa`, `tg`, `ig`, `fb`, `goo`, `tt`, `pp`.\nCommon Countries: `KE`, `US`, `GB`, `CA`, `DE`.", parse_mode="Markdown")
             bot.register_next_step_handler(msg, process_add_whitelist, user_id)
 
         elif call.data.startswith("rmwl_"):
@@ -642,6 +691,8 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             markup = InlineKeyboardMarkup()
             markup.add(InlineKeyboardButton("Manage Users", callback_data="list_users"))
             markup.add(InlineKeyboardButton("Direct Purchase Tokens", callback_data="manage_tokens"))
+            markup.add(InlineKeyboardButton("💰 Check HeroSMS Balance", callback_data="check_balance"))
+            markup.add(InlineKeyboardButton("🏷️ View Provider Prices", callback_data="view_prices"))
             bot.edit_message_text("SMSKenya Admin Panel:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
     def process_add_whitelist(message, user_id):
