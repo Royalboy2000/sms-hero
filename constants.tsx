@@ -11,7 +11,7 @@ import {
   Award
 } from 'lucide-react';
 
-export const WHATSAPP_CONTACT = "447598691673";
+export const WHATSAPP_CONTACT = "254783074649";
 
 // Pricing in Kenyan Shillings (KSh) - Premium Tier (Min 2000)
 export const SERVICES: Service[] = [
