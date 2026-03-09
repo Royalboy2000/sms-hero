@@ -5,8 +5,8 @@ def run():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
-        # Navigate to localhost:3000
-        page.goto("http://localhost:3000/")
+        # Navigate to localhost:8000
+        page.goto("http://localhost:8000/")
 
         # Wait for some content to ensure load
         page.wait_for_selector("nav")

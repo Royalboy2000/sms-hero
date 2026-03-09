@@ -15,17 +15,17 @@ export const WHATSAPP_CONTACT = "254783074649";
 
 // Pricing in Kenyan Shillings (KSh) - Premium Tier (Min 2000)
 export const SERVICES: Service[] = [
-  { id: 'wa', name: 'WhatsApp', icon: 'whatsapp', price: 2500, priceUsd: 20, category: 'messenger' },
-  { id: 'tg', name: 'Telegram', icon: 'telegram', price: 2200, priceUsd: 20, category: 'messenger' },
-  { id: 'ig', name: 'Instagram', icon: 'instagram', price: 2000, priceUsd: 20, category: 'social' },
-  { id: 'fb', name: 'Facebook', icon: 'facebook', price: 2000, priceUsd: 20, category: 'social' },
-  { id: 'goo', name: 'Google', icon: 'google', price: 2800, priceUsd: 22, category: 'other' },
-  { id: 'tt', name: 'TikTok', icon: 'tiktok', price: 2000, priceUsd: 20, category: 'social' },
-  { id: 'tw', name: 'Twitter/X', icon: 'twitter', price: 2100, priceUsd: 20, category: 'social' },
-  { id: 'li', name: 'LinkedIn', icon: 'linkedin', price: 2400, priceUsd: 20, category: 'social' },
-  { id: 'pp', name: 'PayPal', icon: 'paypal', price: 3000, priceUsd: 24, category: 'other' },
-  { id: 'airbnb', name: 'Airbnb', icon: 'airbnb', price: 2200, priceUsd: 20, category: 'other' },
-  { id: 'bolt', name: 'Bolt', icon: 'bolt', price: 2000, priceUsd: 20, category: 'other' },
+  { id: 'wa', name: 'WhatsApp', icon: 'whatsapp', price: 70, priceUsd: 0.55, category: 'messenger' },
+  { id: 'tg', name: 'Telegram', icon: 'telegram', price: 65, priceUsd: 0.50, category: 'messenger' },
+  { id: 'ig', name: 'Instagram', icon: 'instagram', price: 65, priceUsd: 0.50, category: 'social' },
+  { id: 'fb', name: 'Facebook', icon: 'facebook', price: 65, priceUsd: 0.50, category: 'social' },
+  { id: 'goo', name: 'Google', icon: 'google', price: 39, priceUsd: 0.30, category: 'other' },
+  { id: 'tt', name: 'TikTok', icon: 'tiktok', price: 65, priceUsd: 0.50, category: 'social' },
+  { id: 'tw', name: 'Twitter/X', icon: 'twitter', price: 65, priceUsd: 0.50, category: 'social' },
+  { id: 'li', name: 'LinkedIn',  icon: 'linkedin', price: 130, priceUsd: 1.00, category: 'social' },
+  { id: 'pp', name: 'PayPal',    icon: 'paypal', price: 325, priceUsd: 2.50, category: 'other' },
+  { id: 'airbnb', name: 'Airbnb',    icon: 'airbnb', price: 195, priceUsd: 1.50, category: 'other' },
+  { id: 'bolt', name: 'Bolt',      icon: 'bolt', price: 65, priceUsd: 0.50, category: 'other' },
 ];
 
 export const COUNTRIES: Country[] = [
@@ -49,7 +49,6 @@ export const COUNTRIES: Country[] = [
   { code: 'SA', name: 'Saudi Arabia', dialCode: '+966', flag: '🇸🇦' },
   { code: 'QA', name: 'Qatar', dialCode: '+974', flag: '🇶🇦' },
   { code: 'JP', name: 'Japan', dialCode: '+81', flag: '🇯🇵' },
-  { code: 'KR', name: 'South Korea', dialCode: '+82', flag: '🇰🇷' },
   { code: 'SG', name: 'Singapore', dialCode: '+65', flag: '🇸🇬' },
   { code: 'TR', name: 'Turkey', dialCode: '+90', flag: '🇹🇷' },
   { code: 'ES', name: 'Spain', dialCode: '+34', flag: '🇪🇸' },
@@ -146,4 +145,13 @@ export const renderIcon = (iconName: string, className: string = "w-6 h-6") => {
     case 'bolt': return <BoltIcon className={className} />;
     default: return <Smartphone className={className} />;
   }
+};
+
+// Fetch live per-country pricing from backend
+export const fetchPricing = async (): Promise<Record<string, Record<string, { kes: number; usd: number }>>> => {
+  try {
+    const res = await fetch('/api/pricing');
+    if (res.ok) return await res.json();
+  } catch {}
+  return {};
 };
