@@ -19,6 +19,9 @@ dist-ssr
 .DS_Store
 *.suo
 *.ntvs*
+*.db
+*.pyc
+__pycache__/
 *.njsproj
 *.sln
 *.sw?

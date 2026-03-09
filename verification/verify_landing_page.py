@@ -19,7 +19,7 @@ def run():
         expect(page.get_by_role("link", name="Get My International Number")).to_be_visible()
 
         # Verify Pill text
-        expect(page.get_by_text("Proudly Kenyan • Based in Mombasa")).to_be_visible()
+        expect(page.get_by_text("Proudly Kenyan • Based in Germany")).to_be_visible()
 
         # Verify Visual Proof text
         expect(page.get_by_text("Your verification code is:")).to_be_visible()

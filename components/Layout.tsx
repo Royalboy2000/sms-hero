@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { MessageSquare, Menu, X, Smartphone } from 'lucide-react';
+import { MessageSquare, Menu, X, Smartphone, LogIn, LogOut, User, LayoutDashboard } from 'lucide-react';
 import { WHATSAPP_CONTACT, renderIcon } from '../constants';
 import { useCurrency } from '../context/CurrencyContext';
+import { useAuth } from '../context/AuthContext';
 import EmailCapture from './EmailCapture';
+import AuthModal from './AuthModal';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,7 +13,9 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const { currency, toggleCurrency } = useCurrency();
+  const { user, logout } = useAuth();
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
@@ -54,6 +58,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 >
                   Shop
                 </Link>
+                {user && (
+                   <Link
+                   to="/dashboard"
+                   className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 ${
+                     isActive('/dashboard') ? 'text-white bg-zinc-800' : 'text-zinc-400 hover:text-white hover:bg-zinc-900'
+                   }`}
+                 >
+                   Dashboard
+                 </Link>
+                )}
               </div>
             </div>
 
@@ -64,6 +78,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 {currency === 'KES' ? '🇰🇪 KES' : '🇺🇸 USD'}
               </button>
+
+              {user ? (
+                <div className="flex items-center gap-2">
+                   <Link to="/dashboard" className="px-4 py-2 rounded-full bg-zinc-800 text-zinc-300 text-sm flex items-center gap-2 hover:bg-zinc-700 transition-colors">
+                      <User className="w-4 h-4" />
+                      {user.username}
+                   </Link>
+                   <button onClick={logout} className="p-2.5 rounded-full bg-zinc-900 border border-white/5 text-zinc-400 hover:text-red-400 transition-colors">
+                      <LogOut className="w-4 h-4" />
+                   </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="px-6 py-2.5 rounded-full bg-zinc-900 border border-zinc-700 text-white text-sm font-bold hover:border-emerald-500 transition-all flex items-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Login
+                </button>
+              )}
+
               <Link
                 to="/app"
                 className="bg-white text-black hover:bg-zinc-200 px-6 py-2.5 rounded-full text-sm font-bold transition-all shadow-[0_0_20px_rgba(255,255,255,0.1)] flex items-center gap-2"
@@ -102,6 +137,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 Shop
               </Link>
+              {user && (
+                 <Link
+                 to="/dashboard"
+                 onClick={() => setIsMenuOpen(false)}
+                 className="block px-3 py-3 rounded-md text-base font-medium text-zinc-300 hover:text-white hover:bg-zinc-900"
+               >
+                 Dashboard
+               </Link>
+              )}
               <button
                 onClick={() => {
                     toggleCurrency();
@@ -111,6 +155,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               >
                 Switch to {currency === 'KES' ? 'USD' : 'KES'}
               </button>
+
+              {!user ? (
+                 <button
+                 onClick={() => {
+                     setIsAuthModalOpen(true);
+                     setIsMenuOpen(false);
+                 }}
+                 className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-zinc-300 hover:text-white hover:bg-zinc-900"
+               >
+                 Login / Register
+               </button>
+              ) : (
+                <button
+                onClick={() => {
+                    logout();
+                    setIsMenuOpen(false);
+                }}
+                className="block w-full text-left px-3 py-3 rounded-md text-base font-medium text-red-400 hover:bg-zinc-900"
+              >
+                Logout
+              </button>
+              )}
+
               <Link
                  to="/app"
                  onClick={() => setIsMenuOpen(false)}
@@ -126,6 +193,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       <main className="flex-grow pt-20">
         {children}
       </main>
+
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
 
       <footer className="bg-black border-t border-white/5 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
