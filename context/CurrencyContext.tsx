@@ -19,10 +19,19 @@ export const CurrencyProvider: React.FC<{ children: ReactNode }> = ({ children }
   React.useEffect(() => {
     const detectLocation = async () => {
       try {
+        // Check cache first
+        const cachedCountry = localStorage.getItem('detected_country');
+        if (cachedCountry) {
+          setDetectedCountry(cachedCountry);
+          setCurrency(cachedCountry === 'KE' ? 'KES' : 'USD');
+          return;
+        }
+
         const response = await fetch('https://ipapi.co/json/');
         const data = await response.json();
         if (data.country_code) {
           setDetectedCountry(data.country_code);
+          localStorage.setItem('detected_country', data.country_code);
           if (data.country_code === 'KE') {
             setCurrency('KES');
           } else {
