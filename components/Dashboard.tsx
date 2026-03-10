@@ -60,6 +60,30 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleCancelOrder = async (orderId: string) => {
+    const res = await fetch(`/api/order/${orderId}/cancel`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      fetchOrders(); // refresh orders list
+    }
+  };
+
+  const handleRetryOrder = async (serviceId: string, countryId: string) => {
+    const res = await fetch('/api/generate-number', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ service_id: serviceId, country_id: countryId })
+    });
+    if (res.ok) {
+      fetchOrders();
+    }
+  };
+
   const handleRefreshAll = async () => {
     setIsRefreshing(true);
     const waitingOrders = orders.filter(o => o.status === 'waiting');
@@ -163,12 +187,30 @@ const Dashboard: React.FC = () => {
                             </div>
                         </div>
                     </div>
-                    <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        order.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' :
-                        order.status === 'cancelled' ? 'bg-red-500/10 text-red-500' :
-                        'bg-zinc-800 text-zinc-400 animate-pulse'
-                    }`}>
-                        {order.status}
+                    <div className="flex flex-col items-end gap-2">
+                        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            order.status === 'received' ? 'bg-emerald-500/10 text-emerald-500' :
+                            order.status === 'cancelled' ? 'bg-red-500/10 text-red-500' :
+                            'bg-zinc-800 text-zinc-400 animate-pulse'
+                        }`}>
+                            {order.status}
+                        </div>
+                        {order.status === 'waiting' && (
+                            <button
+                                onClick={() => handleCancelOrder(order.order_id_provider)}
+                                className="text-[10px] text-red-400 border border-red-400/30 rounded-lg px-2 py-1 hover:bg-red-500/10 transition-all"
+                            >
+                                ❌ Cancel
+                            </button>
+                        )}
+                        {(order.status === 'cancelled') && (
+                            <button
+                                onClick={() => handleRetryOrder(order.service_id, order.country_id)}
+                                className="text-[10px] text-emerald-400 border border-emerald-400/30 rounded-lg px-2 py-1 hover:bg-emerald-500/10 transition-all"
+                            >
+                                🔄 Try Again
+                            </button>
+                        )}
                     </div>
                 </div>
 

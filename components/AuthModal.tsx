@@ -65,7 +65,36 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             <ShieldCheck className="w-8 h-8 text-emerald-500" />
           </div>
           <h2 className="text-2xl font-bold text-white">{isLogin ? 'Welcome Back' : 'Create Account'}</h2>
-          <p className="text-sm text-zinc-500 mt-1">{isLogin ? 'Login to manage your numbers' : 'Join SMSKenya today'}</p>
+          <p className="text-sm text-zinc-500 mt-1">
+            {isLogin
+              ? "Ingia ili upate nambari yako · Login to get your number"
+              : "Jisajili bure — sekunde 10 · Free signup in 10 seconds"}
+          </p>
+        </div>
+
+        <div className="flex gap-2 w-full mb-6">
+          <button
+            type="button"
+            onClick={() => { setIsLogin(true); setError(''); }}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+              isLogin
+                ? 'bg-emerald-600 text-white'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+            }`}
+          >
+            🔑 Login / Ingia
+          </button>
+          <button
+            type="button"
+            onClick={() => { setIsLogin(false); setError(''); }}
+            className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+              !isLogin
+                ? 'bg-emerald-600 text-white'
+                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+            }`}
+          >
+            ✨ Register / Jisajili
+          </button>
         </div>
 
         {error && (
@@ -98,6 +127,12 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             />
           </div>
 
+          {!isLogin && (
+            <p className="text-xs text-zinc-500 mt-1">
+              📌 Kumbuka password yako — hutaweza kuibadilisha bila msaada
+            </p>
+          )}
+
           <button
             disabled={isLoading}
             type="submit"
@@ -108,23 +143,11 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
             ) : (
               <>
                 {isLogin ? <LogIn className="w-5 h-5" /> : <UserPlus className="w-5 h-5" />}
-                {isLogin ? 'Login' : 'Register'}
+                {isLogin ? 'Ingia / Login →' : 'Jisajili / Register →'}
               </>
             )}
           </button>
         </form>
-
-        <div className="mt-8 pt-8 border-t border-white/5 text-center">
-          <button
-            onClick={() => {
-                setIsLogin(!isLogin);
-                setError('');
-            }}
-            className="text-sm text-zinc-400 hover:text-emerald-500 transition-colors"
-          >
-            {isLogin ? "Don't have an account? Register" : "Already have an account? Login"}
-          </button>
-        </div>
       </div>
     </div>
   );

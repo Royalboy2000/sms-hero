@@ -4,9 +4,15 @@ SMSKenya is a robust platform for generating private international phone numbers
 
 ## Key Features
 
-- **HeroSMS V2 Integration:** Utilizes the latest JSON-based provider API for reliable number generation and status tracking.
-- **Admin-Managed Whitelists:** Precise control over which services and countries are available to individual users.
-- **Interactive Telegram Bot:** Manage users, set arbitrary quotas, configure whitelists with pagination, and check HeroSMS balance/prices directly from Telegram.
+- **Smart HeroSMS V2 Integration:** Utilizes the latest JSON-based provider API with incremental price tiers to ensure the cheapest available numbers are always purchased first.
+- **Admin-Managed Whitelists:** Precise control over which services and countries are available to individual users, toggleable globally.
+- **Enhanced Telegram Admin Bot:**
+    - **User Management:** View quotas, set/add allowed generation limits, and manage paginated whitelists.
+    - **Order Management:** View, cancel, or regenerate numbers for any user directly from Telegram.
+    - **Mapping Exploration:** List all service and country mappings with regional flags.
+    - **HeroSMS Tools:** Check real-time balance and query provider prices via a button-driven 3-step interface (zero typing required).
+- **Improved User Dashboard:** Real-time activation tracking with manual 'Cancel' (waiting orders) and 'Try Again' (cancelled/failed orders) functionality.
+- **Bilingual Auth Experience:** Clearer Login/Register flow with Swahili/English labels and password persistence tips for non-technical users.
 - **Direct Purchase Flow:** Secure, token-based verification links for guest users, requiring no account creation.
 - **Dual Currency Support:** Automatic detection and formatting for KES (M-PESA ready) and USD.
 - **Privacy-First Design:** No personal data or verification codes are stored long-term.
