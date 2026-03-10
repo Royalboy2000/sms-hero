@@ -121,6 +121,20 @@ const Dashboard: React.FC = () => {
     const service = SERVICES.find(s => s.id === order.service_id);
     const country = COUNTRIES.find(c => c.code === order.country_id || c.dialCode === order.country_id);
 
+    // Calculate if cancel button should be visible (2 minutes = 120 seconds)
+    const [currentTime, setCurrentTime] = useState(new Date());
+    useEffect(() => {
+        if (order.status === 'waiting') {
+            const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+            return () => clearInterval(timer);
+        }
+    }, [order.status]);
+
+    const orderTime = new Date(order.timestamp.replace(' ', 'T') + 'Z');
+    const secondsElapsed = Math.floor((currentTime.getTime() - orderTime.getTime()) / 1000);
+    const canCancel = secondsElapsed >= 120;
+    const secondsLeft = Math.max(0, 120 - secondsElapsed);
+
     return (
       <div className="group relative bg-zinc-900 border border-white/5 rounded-[2rem] p-6 hover:border-emerald-500/20 transition-all overflow-hidden">
         <div className="flex justify-between items-start mb-6">
@@ -150,10 +164,15 @@ const Dashboard: React.FC = () => {
                 </div>
                 {order.status === 'waiting' && (
                     <button
+                        disabled={!canCancel}
                         onClick={() => handleCancelOrder(order.order_id_provider)}
-                        className="text-[10px] text-red-400 border border-red-400/30 rounded-lg px-2 py-1 hover:bg-red-500/10 transition-all"
+                        className={`text-[10px] rounded-lg px-2 py-1 transition-all border ${
+                            canCancel
+                            ? 'text-red-400 border-red-400/30 hover:bg-red-500/10'
+                            : 'text-zinc-600 border-zinc-800 cursor-not-allowed'
+                        }`}
                     >
-                        ❌ Cancel
+                        {canCancel ? '❌ Cancel' : `Wait ${secondsLeft}s`}
                     </button>
                 )}
                 {(order.status === 'cancelled') && (

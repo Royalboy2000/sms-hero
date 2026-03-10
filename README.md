@@ -4,17 +4,20 @@ SMSKenya is a robust platform for generating private international phone numbers
 
 ## Key Features
 
-- **Smart HeroSMS V2 Integration:** Utilizes the latest JSON-based provider API with incremental price tiers to ensure the cheapest available numbers are always purchased first.
-- **Admin-Managed Whitelists:** Precise control over which services and countries are available to individual users, toggleable globally.
-- **Enhanced Telegram Admin Bot:**
-    - **User Management:** View quotas, set/add allowed generation limits, and manage paginated whitelists.
-    - **Order Management:** View, cancel, or regenerate numbers for any user directly from Telegram.
-    - **Mapping Exploration:** List all service and country mappings with regional flags.
-    - **HeroSMS Tools:** Check real-time balance and query provider prices via a button-driven 3-step interface (zero typing required).
-- **Improved User Dashboard:** Real-time activation tracking with manual 'Cancel' (waiting orders) and 'Try Again' (cancelled/failed orders) functionality.
-- **Bilingual Auth Experience:** Clearer Login/Register flow with Swahili/English labels and password persistence tips for non-technical users.
-- **Direct Purchase Flow:** Secure, token-based verification links for guest users, requiring no account creation.
-- **Dual Currency Support:** Automatic detection and formatting for KES (M-PESA ready) and USD.
+- **Smart HeroSMS V2 Integration:** Utilizes the latest JSON-based provider API with an **Incremental Price Escalator** ($0.50 → $15.00) to ensure the cheapest available numbers are always prioritized, saving costs on every order.
+- **Admin-Managed Whitelists:** Precise control over which services (e.g., WhatsApp, Telegram) and countries are available to individual users, toggleable globally via a master switch.
+- **Enhanced Telegram Admin Bot (v3):**
+    - **Intelligent Quota Management:** View real-time usage, set absolute limits, or incrementally add to existing quotas with one-click buttons.
+    - **Remote Order Control:** Full visibility into user order streams with the ability to **Cancel & Refund** or **Regenerate** numbers remotely.
+    - **Automated Mapping Discovery:** Instant access to internal provider IDs for 180+ countries and dozens of services, complete with regional emoji flags.
+    - **Zero-Typing HeroSMS Tools:** Check real-time API balance and query live provider pricing/stock via an interactive 3-step button menu.
+- **Premium User Dashboard:**
+    - **Live Polling:** Automatic 10-second status updates for activation codes and remaining quotas.
+    - **Smart Cancellation Guard:** Implements a mandatory 120-second wait period for new numbers to maximize code arrival probability, featuring a live countdown timer.
+    - **One-Click Retries:** Failed or cancelled orders can be retried instantly with the same configuration.
+- **Bilingual Auth Experience:** Optimized for the Kenyan market with a Swahili/English dual-language interface, tabbed navigation, and password persistence reminders.
+- **Direct Purchase Flow:** Secure, single-use token system allowing admins to generate temporary access links for guest users, bypassing account creation.
+- **Dual Currency & Geolocation:** Automatic detection and formatting for KES and USD based on user IP, with cached preferences to minimize network overhead.
 - **Privacy-First Design:** No personal data or verification codes are stored long-term.
 - **Based in Germany:** Modern infrastructure with dedicated human support via WhatsApp.
 
@@ -45,7 +48,7 @@ SMSKenya is a robust platform for generating private international phone numbers
     ```bash
     python server.py [port]
     ```
-    *Note: The server will interactively prompt for required environment variables (`SECRET_KEY`, `HERO_SMS_API_KEY`, etc.) on first run if they are not already in your `.env` file.*
+    *Note: The server includes an interactive setup wizard that will prompt for required environment variables (`SECRET_KEY`, `HERO_SMS_API_KEY`, `TELEGRAM_BOT_TOKEN`, `ADMIN_TELEGRAM_ID`) and the desired port on first launch.*
 
 ## Admin Bot Commands
 
