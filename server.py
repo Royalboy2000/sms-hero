@@ -84,7 +84,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS quotas (
         user_id INTEGER PRIMARY KEY,
-        allowed_numbers INTEGER DEFAULT 600,
+        allowed_numbers INTEGER DEFAULT 0,
         used_numbers INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users (id)
     )
@@ -246,6 +246,9 @@ def init_db():
     cursor.execute("UPDATE mappings SET provider_id='173' WHERE frontend_id='CH' AND type='country'")
     cursor.execute("DELETE FROM mappings WHERE frontend_id='KR' AND type='country'")
 
+    # Patch existing quotas that might have the old default of 600
+    cursor.execute("UPDATE quotas SET allowed_numbers = 0 WHERE allowed_numbers = 600")
+
     conn.commit()
     conn.close()
 
@@ -295,7 +298,7 @@ def register():
         cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hashed_password))
         user_id = cursor.lastrowid
         # Initialize quota
-        cursor.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, ?)', (user_id, 600, 0))
+        cursor.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, ?)', (user_id, 0, 0))
         conn.commit()
     except sqlite3.IntegrityError:
         return jsonify({'message': 'Username already exists!'}), 400
@@ -349,7 +352,7 @@ def get_me(current_user):
     if quota is None:
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)',
+            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 0, 0)',
             (current_user['id'],)
         )
         conn.commit()
@@ -484,7 +487,7 @@ def generate_number(current_user):
     if quota is None:
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)',
+            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 0, 0)',
             (current_user['id'],)
         )
         conn.commit()
@@ -850,7 +853,7 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
 
             if user and not quota:
                 # Auto-create missing quota row
-                conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)', (user_id,))
+                conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 0, 0)', (user_id,))
                 conn.commit()
                 quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
 
