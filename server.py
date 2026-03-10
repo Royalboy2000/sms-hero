@@ -420,12 +420,11 @@ def call_hero_api(action, **kwargs):
     params.update(kwargs)
     try:
         response = requests.get(BASE_API_URL, params=params)
-        if action.endswith('V2') or action in ['getCountries', 'getServicesList', 'getPrices']:
-            try:
-                return response.json()
-            except:
-                return response.text
-        return response.text
+        # Try to parse as JSON first, fallback to text
+        try:
+            return response.json()
+        except:
+            return response.text
     except Exception as e:
         return {"error": str(e)} if action.endswith('V2') else f"ERROR: {str(e)}"
 
@@ -658,10 +657,10 @@ def cancel_order(current_user, order_id):
     if not HERO_SMS_API_KEY:
         res = "ACCESS_CANCEL"
     else:
-        # status 8 — cancel activation (return money)
-        res = call_hero_api('setStatus', id=order_id, status=8)
+        # cancelActivation — cancel activation (return money)
+        res = call_hero_api('cancelActivation', id=order_id)
 
-    if res == "ACCESS_CANCEL": # Allow simulation
+    if res == "ACCESS_CANCEL" or (isinstance(res, dict) and res.get('status') == 'SUCCESS'): # Allow simulation
         conn = get_db_connection()
         order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ? AND user_id = ?', (order_id, current_user['id'])).fetchone()
         if order:
@@ -685,8 +684,8 @@ def admin_cancel_order(current_user, order_id):
     if not order:
         conn.close()
         return jsonify({'message': 'Order not found'}), 404
-    res = call_hero_api('setStatus', id=order_id, status=8) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
-    if res == "ACCESS_CANCEL":
+    res = call_hero_api('cancelActivation', id=order_id) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
+    if res == "ACCESS_CANCEL" or (isinstance(res, dict) and res.get('status') == 'SUCCESS'):
         cursor = conn.cursor()
         cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
         if order['status'] == 'waiting' and order['user_id']:
@@ -709,10 +708,10 @@ def direct_cancel():
     if not HERO_SMS_API_KEY:
         res = "ACCESS_CANCEL"
     else:
-        # status 8 — cancel activation (return money)
-        res = call_hero_api('setStatus', id=order_id, status=8)
+        # cancelActivation — cancel activation (return money)
+        res = call_hero_api('cancelActivation', id=order_id)
 
-    if res == "ACCESS_CANCEL": # Allow simulation
+    if res == "ACCESS_CANCEL" or (isinstance(res, dict) and res.get('status') == 'SUCCESS'): # Allow simulation
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ? AND token = ?', ('cancelled', order_id, token))
@@ -821,6 +820,28 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
             bot.edit_message_text("Select a user:", call.message.chat.id, call.message.message_id, reply_markup=markup)
 
+        elif call.data.startswith("user_orders_"):
+            user_id = call.data.split("_")[2]
+            conn = get_db_connection()
+            orders = conn.execute(
+                "SELECT * FROM orders WHERE user_id = ? AND status IN ('waiting','received') ORDER BY timestamp DESC LIMIT 10",
+                (user_id,)
+            ).fetchall()
+            conn.close()
+            markup = InlineKeyboardMarkup()
+            if not orders:
+                text = f"No active orders for user {user_id}."
+            else:
+                text = f"📋 Active orders (user {user_id}):\n\n"
+                for o in orders:
+                    text += f"• #{o['order_id_provider']} | {o['service_id']}@{o['country_id']} | {o['status']}\n  {o['phone_number']}\n\n"
+                    markup.add(
+                        InlineKeyboardButton(f"❌ Cancel #{o['order_id_provider'][:6]}", callback_data=f"adm_cancel_{o['order_id_provider']}_{user_id}"),
+                        InlineKeyboardButton(f"🔄 Regen #{o['order_id_provider'][:6]}", callback_data=f"adm_regen_{o['order_id_provider']}_{user_id}_{o['service_id']}_{o['country_id']}")
+                    )
+            markup.add(InlineKeyboardButton("« Back to User", callback_data=f"user_{user_id}"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
         elif call.data.startswith("user_"):
             user_id = call.data.split("_")[1]
             conn = get_db_connection()
@@ -848,36 +869,14 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             markup.add(InlineKeyboardButton("« Back to Users", callback_data="list_users"))
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
-        elif call.data.startswith("user_orders_"):
-            user_id = call.data.split("_")[2]
-            conn = get_db_connection()
-            orders = conn.execute(
-                "SELECT * FROM orders WHERE user_id = ? AND status IN ('waiting','received') ORDER BY timestamp DESC LIMIT 10",
-                (user_id,)
-            ).fetchall()
-            conn.close()
-            markup = InlineKeyboardMarkup()
-            if not orders:
-                text = f"No active orders for user {user_id}."
-            else:
-                text = f"📋 Active orders (user {user_id}):\n\n"
-                for o in orders:
-                    text += f"• #{o['order_id_provider']} | {o['service_id']}@{o['country_id']} | {o['status']}\n  {o['phone_number']}\n\n"
-                    markup.add(
-                        InlineKeyboardButton(f"❌ Cancel #{o['order_id_provider'][:6]}", callback_data=f"adm_cancel_{o['order_id_provider']}_{user_id}"),
-                        InlineKeyboardButton(f"🔄 Regen #{o['order_id_provider'][:6]}", callback_data=f"adm_regen_{o['order_id_provider']}_{user_id}_{o['service_id']}_{o['country_id']}")
-                    )
-            markup.add(InlineKeyboardButton("« Back to User", callback_data=f"user_{user_id}"))
-            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
-
         elif call.data.startswith("adm_cancel_"):
             parts = call.data.split("_")
             order_id = parts[2]
             user_id = parts[3]
             conn = get_db_connection()
             order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ?', (order_id,)).fetchone()
-            res = call_hero_api('setStatus', id=order_id, status=8) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
-            if res == "ACCESS_CANCEL":
+            res = call_hero_api('cancelActivation', id=order_id) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
+            if res == "ACCESS_CANCEL" or (isinstance(res, dict) and res.get('status') == 'SUCCESS'):
                 cursor = conn.cursor()
                 cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
                 if order and order['status'] == 'waiting' and order['user_id']:
@@ -887,9 +886,14 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             else:
                 bot.answer_callback_query(call.id, f"❌ Failed: {str(res)[:80]}")
             conn.close()
-            # Redirect to user orders
-            call.data = f"user_orders_{user_id}"
-            callback_query(call)
+            # Navigate back to orders list
+            class Obj: pass
+            new_call = Obj()
+            new_call.data = f"user_orders_{user_id}"
+            new_call.from_user = call.from_user
+            new_call.message = call.message
+            new_call.id = call.id
+            callback_query(new_call)
 
         elif call.data.startswith("adm_regen_"):
             parts = call.data.split("_")
@@ -899,7 +903,7 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             country_id = parts[5]
             # Cancel old
             if HERO_SMS_API_KEY:
-                call_hero_api('setStatus', id=old_order_id, status=8)
+                call_hero_api('cancelActivation', id=old_order_id)
             conn = get_db_connection()
             conn.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', old_order_id))
             conn.commit()
@@ -923,9 +927,14 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
                 bot.answer_callback_query(call.id, f"✅ New: {res['phoneNumber']}")
             else:
                 bot.answer_callback_query(call.id, f"❌ No number: {str(res)[:100]}")
-            # Redirect to user orders
-            call.data = f"user_orders_{user_id}"
-            callback_query(call)
+            # Navigate back to orders list
+            class Obj: pass
+            new_call = Obj()
+            new_call.data = f"user_orders_{user_id}"
+            new_call.from_user = call.from_user
+            new_call.message = call.message
+            new_call.id = call.id
+            callback_query(new_call)
 
         elif call.data.startswith("askquota_add_"):
             user_id = call.data.split("_")[2]
