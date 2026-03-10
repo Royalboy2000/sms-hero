@@ -1,0 +1,632 @@
+========================================================
+JULES INSTRUCTIONS — SMS-HERO v3
+Repository: https://github.com/Royalboy2000/sms-hero
+========================================================
+
+IMPORTANT CONSTRAINTS:
+- Do NOT add IntaSend, M-Pesa, or any payment gateway.
+- Do NOT add new database tables or columns beyond what is described.
+- Do NOT add new API endpoints beyond what is described.
+- Follow each section exactly as written.
+
+========================================================
+SECTION 1 — BUG FIXES (server.py)
+========================================================
+
+--- FIX 1: Verify BASE_API_URL ---
+
+Ensure the line reads exactly:
+  BASE_API_URL = "https://hero-sms.com/stubs/handler_api.php"
+
+NO "api." subdomain. If it says "https://api.hero-sms.com/..." correct it.
+
+--- FIX 2: Country ID mappings in init_db() ---
+
+Replace all country mapping seed values with these correct HeroSMS provider IDs:
+
+  'AE': '95'
+  'AU': '175'
+  'BR': '73'
+  'CA': '36'
+  'CH': '173'    (was 42 — Switzerland)
+  'CN': '3'
+  'DE': '43'
+  'ES': '56'
+  'FR': '78'
+  'GB': '16'
+  'ID': '6'
+  'IN': '22'
+  'IT': '86'     (was 88 — Italy)
+  'JP': '182'    (was 112 — Japan)
+  'KE': '8'
+  'NL': '48'
+  'NG': '19'
+  'PH': '4'
+  'PL': '15'
+  'QA': '111'
+  'RU': '0'
+  'SA': '53'
+  'SE': '46'
+  'SG': '196'    (was 47 — Singapore)
+  'TR': '62'
+  'TZ': '9'      (was 51 — Tanzania)
+  'UG': '75'
+  'US': '187'    (was 12 — real USA, not "USA virtual")
+  'ZA': '31'
+
+  REMOVE 'KR' — South Korea is NOT on HeroSMS. ID 113 is Cuba.
+
+--- FIX 3: Patch existing DB rows on startup ---
+
+In init_db(), AFTER the INSERT OR IGNORE seeding block, add these UPDATE+DELETE
+statements so existing (wrong) rows are corrected every restart:
+
+  cursor.execute("UPDATE mappings SET provider_id='187' WHERE frontend_id='US' AND type='country'")
+  cursor.execute("UPDATE mappings SET provider_id='9'   WHERE frontend_id='TZ' AND type='country'")
+  cursor.execute("UPDATE mappings SET provider_id='182' WHERE frontend_id='JP' AND type='country'")
+  cursor.execute("UPDATE mappings SET provider_id='196' WHERE frontend_id='SG' AND type='country'")
+  cursor.execute("UPDATE mappings SET provider_id='86'  WHERE frontend_id='IT' AND type='country'")
+  cursor.execute("UPDATE mappings SET provider_id='173' WHERE frontend_id='CH' AND type='country'")
+  cursor.execute("DELETE FROM mappings WHERE frontend_id='KR' AND type='country'")
+
+--- FIX 4: Smart incremental maxPrice (CRITICAL) ---
+
+PROBLEM: Passing maxPrice=3.0 to getNumberV2 makes HeroSMS return the most expensive
+number (e.g. $2.50) even when $0.17 ones exist. We must start cheap and only go higher
+if cheaper tiers have no stock.
+
+Define this helper function ONCE above the generate_number route:
+
+  def get_number_with_smart_pricing(p_service, p_country):
+      """Try price tiers from cheapest to most expensive. Return first success."""
+      price_tiers = [0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 15.0]
+      last_res = None
+      for max_p in price_tiers:
+          res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=max_p)
+          if isinstance(res, dict) and 'activationId' in res:
+              return res
+          last_res = res
+          # Stop escalating if error is not "no numbers at this price"
+          if isinstance(res, str) and 'NO_NUMBER' not in res.upper():
+              break
+          if isinstance(res, dict) and res.get('status') not in (None, 'NO_NUMBERS'):
+              break
+      return last_res
+
+In both /api/generate-number and /api/direct/generate, replace:
+  res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=3.0)
+with:
+  res = get_number_with_smart_pricing(p_service, p_country)
+
+--- FIX 5: Simulation block runs BEFORE API call ---
+
+In both /api/generate-number and /api/direct/generate, the structure must be:
+
+  if not HERO_SMS_API_KEY:
+      import random
+      res = {
+          "activationId": str(random.randint(100000, 999999)),
+          "phoneNumber": f"1{random.randint(2000000000, 9999999999)}"
+      }
+  else:
+      res = get_number_with_smart_pricing(p_service, p_country)
+
+The simulation must never be placed AFTER the real API call.
+
+--- FIX 6: Quota None → auto-create row ---
+
+In /api/generate-number, ensure this guard exists:
+
+  quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (current_user['id'],)).fetchone()
+  if quota is None:
+      cursor = conn.cursor()
+      cursor.execute(
+          'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)',
+          (current_user['id'],)
+      )
+      conn.commit()
+      quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (current_user['id'],)).fetchone()
+
+--- FIX 7: Quota increment bug (admin can't add more quota after first set) ---
+
+PROBLEM: process_set_quota uses UPDATE which silently does nothing if the quota row
+doesn't exist. Also, admin needs to ADD to quota, not just replace it.
+
+Replace process_set_quota with:
+
+  def process_set_quota(message, user_id):
+      try:
+          amount = int(message.text.strip())
+          conn = get_db_connection()
+          existing = conn.execute('SELECT user_id FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+          if existing:
+              conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (amount, user_id))
+          else:
+              conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, 0)', (user_id, amount))
+          conn.commit()
+          conn.close()
+          bot.reply_to(message, f"✅ Quota set to {amount} for user {user_id}")
+      except ValueError:
+          bot.reply_to(message, "❌ Enter a valid number.")
+
+Add a new handler for adding (incrementing) quota:
+
+  elif call.data.startswith("askquota_add_"):
+      user_id = call.data.split("_")[2]
+      msg = bot.send_message(call.message.chat.id, "How many numbers to ADD to this user's quota?")
+      bot.register_next_step_handler(msg, process_add_quota, user_id)
+
+  def process_add_quota(message, user_id):
+      try:
+          amount = int(message.text.strip())
+          conn = get_db_connection()
+          existing = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+          if existing:
+              new_total = existing['allowed_numbers'] + amount
+              conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (new_total, user_id))
+              msg = f"✅ Added {amount}. New total: {new_total}"
+          else:
+              conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, 0)', (user_id, amount))
+              msg = f"✅ Created quota: {amount}"
+          conn.commit()
+          conn.close()
+          bot.reply_to(message, msg)
+      except ValueError:
+          bot.reply_to(message, "❌ Enter a valid number.")
+
+In the user detail menu, change quota buttons to:
+
+  markup.add(InlineKeyboardButton("⚙️ Set Quota (replace)", callback_data=f"askquota_{user_id}"))
+  markup.add(InlineKeyboardButton("➕ Add to Quota", callback_data=f"askquota_add_{user_id}"))
+
+--- FIX 8: Quota refund only when no code received ---
+
+In /api/order/<order_id>/cancel, quota should be decremented ONLY if
+order status is 'waiting' (no code received yet). If status is 'received',
+do NOT refund:
+
+  order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ? AND user_id = ?',
+                       (order_id, current_user['id'])).fetchone()
+  if order and order['status'] == 'waiting':
+      cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+      cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (current_user['id'],))
+  elif order:
+      cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+      # No quota refund — code was already received
+
+Also add an admin-only cancel endpoint (used by the web dashboard if admin is logged in):
+
+  @app.route('/api/admin/order/<order_id>/cancel', methods=['POST'])
+  @token_required
+  def admin_cancel_order(current_user, order_id):
+      if current_user.get('username') != 'admin':
+          return jsonify({'message': 'Unauthorized'}), 403
+      conn = get_db_connection()
+      order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ?', (order_id,)).fetchone()
+      if not order:
+          conn.close()
+          return jsonify({'message': 'Order not found'}), 404
+      res = call_hero_api('setStatus', id=order_id, status=8) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
+      if res == "ACCESS_CANCEL":
+          cursor = conn.cursor()
+          cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+          if order['status'] == 'waiting' and order['user_id']:
+              cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (order['user_id'],))
+          conn.commit()
+          conn.close()
+          return jsonify({'message': 'Cancelled by admin.'})
+      conn.close()
+      return jsonify({'message': f'Provider cancel failed: {res}'}), 400
+
+--- FIX 9: getPrices parsing in Telegram bot ---
+
+In process_check_prices, verify the parsing uses country->service order:
+
+  if isinstance(res, dict) and str(country) in res:
+      service_data = res[str(country)].get(service, {})
+      cost = service_data.get('cost', 'N/A')
+      count = service_data.get('count', 'N/A')
+      text = f"🏷️ {service}@{country}: ${cost}, {count} available"
+
+Remove any old list-based parsing above this block that could shadow it.
+
+========================================================
+SECTION 2 — TELEGRAM ADMIN BOT IMPROVEMENTS (server.py)
+========================================================
+
+--- IMPROVEMENT 1: Main menu buttons ---
+
+Replace the main menu layout with:
+
+  markup.add(InlineKeyboardButton("👥 Manage Users", callback_data="list_users"))
+  markup.add(
+      InlineKeyboardButton("📋 List Services", callback_data="list_services_0"),
+      InlineKeyboardButton("🌍 List Countries", callback_data="list_countries_0")
+  )
+  markup.add(InlineKeyboardButton("💰 HeroSMS Balance", callback_data="check_balance"))
+  markup.add(InlineKeyboardButton("🏷️ Check Prices", callback_data="view_prices"))
+  markup.add(InlineKeyboardButton(wl_label, callback_data="toggle_whitelist"))
+  markup.add(InlineKeyboardButton("🎟️ Direct Purchase Tokens", callback_data="manage_tokens"))
+
+--- IMPROVEMENT 2: List Services ---
+
+  elif call.data.startswith("list_services_"):
+      page = int(call.data.split("_")[2])
+      per_page = 10
+      conn = get_db_connection()
+      services = conn.execute(
+          "SELECT frontend_id, provider_id FROM mappings WHERE type='service' ORDER BY frontend_id LIMIT ? OFFSET ?",
+          (per_page, page * per_page)
+      ).fetchall()
+      total = conn.execute("SELECT COUNT(*) FROM mappings WHERE type='service'").fetchone()[0]
+      conn.close()
+      lines = [f"  {s['frontend_id']} → {s['provider_id']}" for s in services]
+      text = "📋 Service Mappings:\n\n" + "\n".join(lines)
+      markup = InlineKeyboardMarkup()
+      nav = []
+      if page > 0:
+          nav.append(InlineKeyboardButton("« Prev", callback_data=f"list_services_{page-1}"))
+      if (page + 1) * per_page < total:
+          nav.append(InlineKeyboardButton("Next »", callback_data=f"list_services_{page+1}"))
+      if nav:
+          markup.add(*nav)
+      markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+      bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+--- IMPROVEMENT 3: List Countries ---
+
+Add this flag lookup dict at the top of the bot section:
+
+  COUNTRY_FLAGS = {
+    'AE':'🇦🇪','AU':'🇦🇺','BR':'🇧🇷','CA':'🇨🇦','CH':'🇨🇭','CN':'🇨🇳',
+    'DE':'🇩🇪','ES':'🇪🇸','FR':'🇫🇷','GB':'🇬🇧','ID':'🇮🇩','IN':'🇮🇳',
+    'IT':'🇮🇹','JP':'🇯🇵','KE':'🇰🇪','NL':'🇳🇱','NG':'🇳🇬','PH':'🇵🇭',
+    'PL':'🇵🇱','QA':'🇶🇦','RU':'🇷🇺','SA':'🇸🇦','SE':'🇸🇪','SG':'🇸🇬',
+    'TR':'🇹🇷','TZ':'🇹🇿','UG':'🇺🇬','US':'🇺🇸','ZA':'🇿🇦'
+  }
+
+  elif call.data.startswith("list_countries_"):
+      page = int(call.data.split("_")[2])
+      per_page = 10
+      conn = get_db_connection()
+      countries = conn.execute(
+          "SELECT frontend_id, provider_id FROM mappings WHERE type='country' ORDER BY frontend_id LIMIT ? OFFSET ?",
+          (per_page, page * per_page)
+      ).fetchall()
+      total = conn.execute("SELECT COUNT(*) FROM mappings WHERE type='country'").fetchone()[0]
+      conn.close()
+      lines = [f"  {COUNTRY_FLAGS.get(c['frontend_id'],'')} {c['frontend_id']} → {c['provider_id']}" for c in countries]
+      text = "🌍 Country Mappings:\n\n" + "\n".join(lines)
+      markup = InlineKeyboardMarkup()
+      nav = []
+      if page > 0:
+          nav.append(InlineKeyboardButton("« Prev", callback_data=f"list_countries_{page-1}"))
+      if (page + 1) * per_page < total:
+          nav.append(InlineKeyboardButton("Next »", callback_data=f"list_countries_{page+1}"))
+      if nav:
+          markup.add(*nav)
+      markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+      bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+--- IMPROVEMENT 4: Check Prices — fully button-driven, no typing ---
+
+Replace the "view_prices" text-input flow with a button-driven 3-step flow:
+
+Step 1 — Service selection:
+
+  elif call.data == "view_prices":
+      markup = InlineKeyboardMarkup()
+      svcs = ['wa', 'tg', 'ig', 'fb', 'goo', 'tt', 'pp', 'go']
+      row = []
+      for svc in svcs:
+          row.append(InlineKeyboardButton(svc.upper(), callback_data=f"price_svc_{svc}"))
+          if len(row) == 4:
+              markup.add(*row)
+              row = []
+      if row:
+          markup.add(*row)
+      markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+      bot.edit_message_text("Select service:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+Step 2 — Country selection:
+
+  elif call.data.startswith("price_svc_"):
+      svc = call.data.split("_")[2]
+      conn = get_db_connection()
+      countries = conn.execute("SELECT frontend_id, provider_id FROM mappings WHERE type='country' ORDER BY frontend_id").fetchall()
+      conn.close()
+      markup = InlineKeyboardMarkup()
+      row = []
+      for c in countries:
+          flag = COUNTRY_FLAGS.get(c['frontend_id'], '')
+          row.append(InlineKeyboardButton(f"{flag}{c['frontend_id']}", callback_data=f"pchk_{svc}_{c['frontend_id']}_{c['provider_id']}"))
+          if len(row) == 3:
+              markup.add(*row)
+              row = []
+      if row:
+          markup.add(*row)
+      markup.add(InlineKeyboardButton("« Back", callback_data="view_prices"))
+      bot.edit_message_text(f"Select country for {svc.upper()}:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+Step 3 — Price result:
+
+  elif call.data.startswith("pchk_"):
+      parts = call.data.split("_")
+      svc = parts[1]
+      fe_country = parts[2]
+      prov_country = parts[3]
+      res = call_hero_api('getPrices', service=svc, country=prov_country)
+      if isinstance(res, dict) and str(prov_country) in res:
+          sd = res[str(prov_country)].get(svc, {})
+          cost = sd.get('cost', 'N/A')
+          count = sd.get('count', 'N/A')
+          text = f"🏷️ {svc.upper()} @ {fe_country} (ID:{prov_country})\n💰 Cost: ${cost}\n📦 Stock: {count}"
+      else:
+          text = f"No data for {svc}@{prov_country}.\nRaw: {str(res)[:300]}"
+      markup = InlineKeyboardMarkup()
+      markup.add(InlineKeyboardButton("« Back to Countries", callback_data=f"price_svc_{svc}"))
+      markup.add(InlineKeyboardButton("« Main Menu", callback_data="main_menu"))
+      bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+--- IMPROVEMENT 5: View user's active orders ---
+
+In the user detail menu (user_{user_id} handler), add:
+  markup.add(InlineKeyboardButton("📋 View Active Orders", callback_data=f"user_orders_{user_id}"))
+
+Handler:
+
+  elif call.data.startswith("user_orders_"):
+      user_id = call.data.split("_")[2]
+      conn = get_db_connection()
+      orders = conn.execute(
+          "SELECT * FROM orders WHERE user_id = ? AND status IN ('waiting','received') ORDER BY timestamp DESC LIMIT 10",
+          (user_id,)
+      ).fetchall()
+      conn.close()
+      markup = InlineKeyboardMarkup()
+      if not orders:
+          text = f"No active orders for user {user_id}."
+      else:
+          text = f"📋 Active orders (user {user_id}):\n\n"
+          for o in orders:
+              text += f"• #{o['order_id_provider']} | {o['service_id']}@{o['country_id']} | {o['status']}\n  {o['phone_number']}\n\n"
+              markup.add(
+                  InlineKeyboardButton(f"❌ Cancel #{o['order_id_provider'][:6]}", callback_data=f"adm_cancel_{o['order_id_provider']}_{user_id}"),
+                  InlineKeyboardButton(f"🔄 Regen #{o['order_id_provider'][:6]}", callback_data=f"adm_regen_{o['order_id_provider']}_{user_id}_{o['service_id']}_{o['country_id']}")
+              )
+      markup.add(InlineKeyboardButton("« Back to User", callback_data=f"user_{user_id}"))
+      bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+--- IMPROVEMENT 6: Admin cancel order via bot ---
+
+  elif call.data.startswith("adm_cancel_"):
+      parts = call.data.split("_")
+      order_id = parts[2]
+      user_id = parts[3]
+      conn = get_db_connection()
+      order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ?', (order_id,)).fetchone()
+      res = call_hero_api('setStatus', id=order_id, status=8) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
+      if res == "ACCESS_CANCEL":
+          cursor = conn.cursor()
+          cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+          if order and order['status'] == 'waiting' and order['user_id']:
+              cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (order['user_id'],))
+          conn.commit()
+          bot.answer_callback_query(call.id, f"✅ Order {order_id[:8]} cancelled.")
+      else:
+          bot.answer_callback_query(call.id, f"❌ Failed: {str(res)[:80]}")
+      conn.close()
+      # Navigate back to orders list
+      # (re-call user_orders_ logic inline or via a shared helper)
+
+--- IMPROVEMENT 7: Admin regenerate number via bot ---
+
+  elif call.data.startswith("adm_regen_"):
+      parts = call.data.split("_")
+      old_order_id = parts[2]
+      user_id = parts[3]
+      service_id = parts[4]
+      country_id = parts[5]
+      # Cancel old
+      if HERO_SMS_API_KEY:
+          call_hero_api('setStatus', id=old_order_id, status=8)
+      conn = get_db_connection()
+      conn.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', old_order_id))
+      conn.commit()
+      conn.close()
+      # Get new
+      p_service = get_mapping(service_id, 'service')
+      p_country = get_mapping(country_id, 'country')
+      if HERO_SMS_API_KEY:
+          res = get_number_with_smart_pricing(p_service, p_country)
+      else:
+          import random
+          res = {"activationId": str(random.randint(100000,999999)), "phoneNumber": f"1{random.randint(2000000000,9999999999)}"}
+      if isinstance(res, dict) and 'activationId' in res:
+          conn = get_db_connection()
+          conn.execute(
+              'INSERT INTO orders (user_id, service_id, country_id, phone_number, order_id_provider, status) VALUES (?,?,?,?,?,?)',
+              (user_id, service_id, country_id, res['phoneNumber'], res['activationId'], 'waiting')
+          )
+          conn.commit()
+          conn.close()
+          bot.answer_callback_query(call.id, f"✅ New: {res['phoneNumber']}")
+      else:
+          bot.answer_callback_query(call.id, f"❌ No number: {str(res)[:100]}")
+
+--- IMPROVEMENT 8: Back buttons audit ---
+
+Verify every screen has a Back button:
+  - User detail → "« Back to Users" (callback: list_users)
+  - Whitelist screen → "« Back to User" (callback: user_{user_id})
+  - Orders list → "« Back to User" (callback: user_{user_id})
+  - Service list → "« Back" (callback: main_menu)
+  - Country list → "« Back" (callback: main_menu)
+  - Price service selection → "« Back" (callback: main_menu)
+  - Price country selection → "« Back to Services" (callback: view_prices)
+  - Price result → "« Back to Countries" (callback: price_svc_{svc}) + "« Main Menu"
+  - Token management → "« Back" (callback: main_menu)
+
+========================================================
+SECTION 3 — FRONTEND FIXES (constants.tsx)
+========================================================
+
+Remove South Korea from the COUNTRIES array:
+  { id: 'KR', name: 'South Korea', flag: '🇰🇷' }
+
+Do not remove any other country.
+
+========================================================
+SECTION 4 — AUTH MODAL UX (components/AuthModal.tsx)
+========================================================
+
+Make the auth modal clearer for Kenyan users who may not be tech-savvy.
+Keep all existing form logic, state, API calls, and validation unchanged.
+Only change visual/text elements as described:
+
+1. REPLACE the text-link tab toggle at the bottom with two large tab buttons at the top
+   (placed just below the icon, before the form fields):
+
+   <div className="flex gap-2 w-full mb-6">
+     <button
+       type="button"
+       onClick={() => { setIsLogin(true); setError(''); }}
+       className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+         isLogin
+           ? 'bg-emerald-600 text-white'
+           : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+       }`}
+     >
+       🔑 Login / Ingia
+     </button>
+     <button
+       type="button"
+       onClick={() => { setIsLogin(false); setError(''); }}
+       className={`flex-1 py-3 rounded-xl font-bold text-sm transition-all ${
+         !isLogin
+           ? 'bg-emerald-600 text-white'
+           : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+       }`}
+     >
+       ✨ Register / Jisajili
+     </button>
+   </div>
+
+2. Remove the existing text-link toggle button at the bottom of the modal
+   (the "Don't have an account? Register" / "Already have an account? Login" link).
+
+3. Update subtitle text:
+   - Login mode:    "Ingia ili upate nambari yako · Login to get your number"
+   - Register mode: "Jisajili bure — sekunde 10 · Free signup in 10 seconds"
+
+4. Update submit button label:
+   - Login:    "Ingia / Login →"
+   - Register: "Jisajili / Register →"
+
+5. Add a helper tip below the password field on the Register tab only:
+   <p className="text-xs text-zinc-500 mt-1">
+     📌 Kumbuka password yako — hutaweza kuibadilisha bila msaada
+   </p>
+   ("Remember your password — you cannot reset it without admin help")
+
+========================================================
+SECTION 5 — DASHBOARD IMPROVEMENTS (components/Dashboard.tsx)
+========================================================
+
+--- Cancel button on waiting orders ---
+
+For each order where status === 'waiting', add a Cancel button next to the order row.
+
+Add this function inside the Dashboard component:
+
+  const handleCancelOrder = async (orderId: string) => {
+    const res = await fetch(`/api/order/${orderId}/cancel`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      fetchOrders(); // refresh orders list
+    }
+  };
+
+Render alongside the order row (status === 'waiting'):
+
+  <button
+    onClick={() => handleCancelOrder(order.order_id_provider)}
+    className="text-xs text-red-400 border border-red-400/30 rounded-lg px-2 py-1 hover:bg-red-500/10 transition-all"
+  >
+    ❌ Cancel
+  </button>
+
+--- Try Again button on cancelled/failed orders ---
+
+For each order where status === 'cancelled' or status === 'failed', add a Try Again button.
+
+  const handleRetryOrder = async (serviceId: string, countryId: string) => {
+    const res = await fetch('/api/generate-number', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ service_id: serviceId, country_id: countryId })
+    });
+    if (res.ok) {
+      fetchOrders();
+    }
+  };
+
+Render alongside the order row (status === 'cancelled' or 'failed'):
+
+  <button
+    onClick={() => handleRetryOrder(order.service_id, order.country_id)}
+    className="text-xs text-emerald-400 border border-emerald-400/30 rounded-lg px-2 py-1 hover:bg-emerald-500/10 transition-all"
+  >
+    🔄 Try Again
+  </button>
+
+========================================================
+SECTION 6 — REMOVE INTASEND
+========================================================
+
+Search the entire codebase for any of these strings and delete those code sections:
+  intasend / IntaSend / INTASEND
+  intasend_public_key / intasend_secret_key
+  Any import of intasend library
+  Any /api/pay, /api/payment, /api/checkout route that references IntaSend
+  Any frontend component referencing IntaSend
+
+Do NOT remove any other routes or components.
+Do NOT add a replacement payment system.
+
+========================================================
+SECTION 7 — VERIFICATION CHECKLIST
+========================================================
+
+[ ] BASE_API_URL has no "api." subdomain
+[ ] All country IDs in init_db() match Section 1 Fix 2
+[ ] DB patch UPDATE/DELETE statements in init_db() run on every restart
+[ ] get_number_with_smart_pricing() tries 0.5→1.0→2.0→3.0→5.0→10.0→15.0
+[ ] Both generate-number and direct/generate use get_number_with_smart_pricing()
+[ ] Simulation block (no API key) runs BEFORE the real API call
+[ ] Quota row is auto-created if missing
+[ ] process_set_quota does INSERT if no row exists, not just UPDATE
+[ ] Admin can ADD to quota (not just replace it) via "askquota_add_" button
+[ ] Cancel order refunds quota only when order status was 'waiting'
+[ ] Admin can cancel any order via Telegram bot buttons
+[ ] Admin can regenerate a number via Telegram bot buttons
+[ ] All Telegram bot screens have a « Back button
+[ ] List Services works and shows all service mappings
+[ ] List Countries works and shows flag + frontend_id + provider_id
+[ ] Check Prices is fully button-driven (zero typing required)
+[ ] KR removed from COUNTRIES in constants.tsx
+[ ] AuthModal has tab buttons (Login / Register) at top instead of bottom link
+[ ] AuthModal has bilingual labels (Swahili + English)
+[ ] Dashboard has ❌ Cancel button on waiting orders
+[ ] Dashboard has 🔄 Try Again button on cancelled/failed orders
+[ ] All IntaSend references removed from server.py and frontend
+[ ] No new payment system added
+
+========================================================
+END OF INSTRUCTIONS
+========================================================
