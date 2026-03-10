@@ -20,9 +20,7 @@ def setup_env():
         'SECRET_KEY': 'Enter a secret key for JWT (e.g., a long random string): ',
         'HERO_SMS_API_KEY': 'Enter your Hero-SMS API Key: ',
         'TELEGRAM_BOT_TOKEN': 'Enter your Telegram Bot Token: ',
-        'ADMIN_TELEGRAM_ID': 'Enter your Admin Telegram User ID: ',
-        'INTASEND_PUBLIC_KEY': 'Enter your IntaSend Public Key: ',
-        'INTASEND_SECRET_KEY': 'Enter your IntaSend Secret Key: '
+        'ADMIN_TELEGRAM_ID': 'Enter your Admin Telegram User ID: '
     }
 
     updated = False
@@ -58,9 +56,6 @@ HERO_SMS_API_KEY = os.environ.get('HERO_SMS_API_KEY', '')
 TELEGRAM_BOT_TOKEN = os.environ.get('TELEGRAM_BOT_TOKEN', '')
 ADMIN_TELEGRAM_ID = os.environ.get('ADMIN_TELEGRAM_ID', '')
 
-INTASEND_PUBLIC_KEY = os.environ.get('INTASEND_PUBLIC_KEY', '')
-INTASEND_SECRET_KEY = os.environ.get('INTASEND_SECRET_KEY', '')
-INTASEND_TEST_MODE = os.environ.get('INTASEND_TEST_MODE', 'true').lower() == 'true'
 
 # Database setup
 DB_PATH = 'smskenya.db'
@@ -89,7 +84,7 @@ def init_db():
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS quotas (
         user_id INTEGER PRIMARY KEY,
-        allowed_numbers INTEGER DEFAULT 0,
+        allowed_numbers INTEGER DEFAULT 600,
         used_numbers INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users (id)
     )
@@ -156,23 +151,6 @@ def init_db():
     # Seed initial settings
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('whitelist_required', '0')")
 
-    # Payments table (M-Pesa transactions)
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS payments (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        amount_kes REAL NOT NULL,
-        phone_number TEXT NOT NULL,
-        merchant_request_id TEXT,
-        checkout_request_id TEXT UNIQUE,
-        mpesa_receipt TEXT,
-        status TEXT DEFAULT 'pending',
-        service_id TEXT,
-        country_id TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id)
-    )
-    ''')
 
     # Pricing table (our selling prices, not provider cost)
     cursor.execute('''
@@ -188,49 +166,49 @@ def init_db():
     # Seed default prices (KES) — based on provider cost + margin
     default_prices = [
         # service, country, KES price, USD price
-        ('wa', 'US', 455, 3.50),
-        ('wa', 'CA', 130, 1.00),
-        ('wa', 'GB', 195, 1.50),
-        ('wa', 'KE', 70,  0.55),
-        ('wa', 'TZ', 105, 0.80),
-        ('wa', 'ZA', 65,  0.50),
-        ('wa', 'NG', 85,  0.65),
-        ('wa', 'UG', 90,  0.70),
-        ('wa', 'TR', 260, 2.00),
-        ('wa', 'IT', 455, 3.50),
-        ('wa', 'DE', 195, 1.50),
-        ('wa', 'NL', 195, 1.50),
-        ('wa', 'PL', 105, 0.80),
-        ('wa', 'SA', 325, 2.50),
-        ('wa', 'JP', 325, 2.50),
-        ('wa', 'AU', 390, 3.00),
-        ('wa', 'SE', 195, 1.50),
-        ('wa', 'SG', 1430, 11.00),
-        ('wa', 'RU', 845, 6.50),
-        ('wa', 'IN', 130, 1.00),
-        ('wa', 'ID', 65, 0.50),
-        ('tg', 'CA', 100, 0.75),
-        ('tg', 'US', 163, 1.25),
-        ('tg', 'BR', 130, 1.00),
-        ('tg', 'TR', 195, 1.50),
-        ('tg', 'KE', 65,  0.50),
-        ('tg', 'GB', 130, 1.00),
-        ('tg', 'DE', 195, 1.50),
-        ('tg', 'NG', 85,  0.65),
-        ('ig', 'BR', 39,  0.30),
-        ('ig', 'CA', 39,  0.30),
-        ('ig', 'US', 130, 1.00),
-        ('ig', 'KE', 65,  0.50),
-        ('ig', 'GB', 52,  0.40),
-        ('fb', 'BR', 39,  0.30),
-        ('fb', 'CA', 39,  0.30),
-        ('fb', 'US', 130, 1.00),
-        ('fb', 'KE', 65,  0.50),
-        ('goo', 'CA', 39,  0.30),
-        ('goo', 'US', 130, 1.00),
-        ('goo', 'KE', 39,  0.30),
-        ('goo', 'DE', 65,  0.50),
-        ('goo', 'NG', 65,  0.50),
+        ('wa', 'US', 600, 4.60),
+        ('wa', 'CA', 600, 4.60),
+        ('wa', 'GB', 600, 4.60),
+        ('wa', 'KE', 600, 4.60),
+        ('wa', 'TZ', 600, 4.60),
+        ('wa', 'ZA', 600, 4.60),
+        ('wa', 'NG', 600, 4.60),
+        ('wa', 'UG', 600, 4.60),
+        ('wa', 'TR', 600, 4.60),
+        ('wa', 'IT', 600, 4.60),
+        ('wa', 'DE', 600, 4.60),
+        ('wa', 'NL', 600, 4.60),
+        ('wa', 'PL', 600, 4.60),
+        ('wa', 'SA', 600, 4.60),
+        ('wa', 'JP', 600, 4.60),
+        ('wa', 'AU', 600, 4.60),
+        ('wa', 'SE', 600, 4.60),
+        ('wa', 'SG', 600, 4.60),
+        ('wa', 'RU', 600, 4.60),
+        ('wa', 'IN', 600, 4.60),
+        ('wa', 'ID', 600, 4.60),
+        ('tg', 'CA', 600, 4.60),
+        ('tg', 'US', 600, 4.60),
+        ('tg', 'BR', 600, 4.60),
+        ('tg', 'TR', 600, 4.60),
+        ('tg', 'KE', 600, 4.60),
+        ('tg', 'GB', 600, 4.60),
+        ('tg', 'DE', 600, 4.60),
+        ('tg', 'NG', 600, 4.60),
+        ('ig', 'BR', 600, 4.60),
+        ('ig', 'CA', 600, 4.60),
+        ('ig', 'US', 600, 4.60),
+        ('ig', 'KE', 600, 4.60),
+        ('ig', 'GB', 600, 4.60),
+        ('fb', 'BR', 600, 4.60),
+        ('fb', 'CA', 600, 4.60),
+        ('fb', 'US', 600, 4.60),
+        ('fb', 'KE', 600, 4.60),
+        ('goo', 'CA', 600, 4.60),
+        ('goo', 'US', 600, 4.60),
+        ('goo', 'KE', 600, 4.60),
+        ('goo', 'DE', 600, 4.60),
+        ('goo', 'NG', 600, 4.60),
     ]
     for svc, cid, kes, usd in default_prices:
         cursor.execute(
@@ -320,7 +298,7 @@ def register():
         cursor.execute('INSERT INTO users (username, password_hash) VALUES (?, ?)', (username, hashed_password))
         user_id = cursor.lastrowid
         # Initialize quota
-        cursor.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, ?)', (user_id, 0, 0))
+        cursor.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, ?)', (user_id, 600, 0))
         conn.commit()
     except sqlite3.IntegrityError:
         return jsonify({'message': 'Username already exists!'}), 400
@@ -486,7 +464,7 @@ def generate_number(current_user):
     if quota is None:
         cursor = conn.cursor()
         cursor.execute(
-            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 0, 0)',
+            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)',
             (current_user['id'],)
         )
         conn.commit()
@@ -509,7 +487,7 @@ def generate_number(current_user):
         }
     else:
         # Call Hero-SMS API V2
-        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=15.0)
+        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=3.0)
 
     if isinstance(res, dict) and 'activationId' in res:
         order_id = res['activationId']
@@ -574,7 +552,7 @@ def direct_generate():
         }
     else:
         # Call Hero-SMS API V2
-        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=15.0)
+        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=3.0)
 
     if isinstance(res, dict) and 'activationId' in res:
         order_id = res['activationId']
@@ -1004,264 +982,6 @@ def get_prices():
     return jsonify(summary)
 
 
-@app.route('/api/payment/initiate', methods=['POST'])
-@token_required
-def initiate_payment(current_user):
-    """Initiate M-Pesa STK Push via IntaSend."""
-    data = request.get_json()
-    phone = data.get('phone')       # e.g. "0712345678" or "254712345678"
-    service_id = data.get('service_id')
-    country_id = data.get('country_id')
-
-    if not phone or not service_id or not country_id:
-        return jsonify({'message': 'phone, service_id, and country_id are required'}), 400
-
-    # Normalise phone to 2547XXXXXXXX format
-    phone = phone.strip().replace(' ', '').replace('+', '')
-    if phone.startswith('0'):
-        phone = '254' + phone[1:]
-    if not phone.startswith('254') or len(phone) != 12:
-        return jsonify({'message': 'Invalid Kenyan phone number'}), 400
-
-    # Look up price
-    conn = get_db_connection()
-    price_row = conn.execute(
-        'SELECT price_kes FROM pricing WHERE service_id=? AND country_id=?',
-        (service_id, country_id)
-    ).fetchone()
-    conn.close()
-
-    if not price_row:
-        return jsonify({'message': f'No price set for {service_id}/{country_id}'}), 404
-
-    amount_kes = price_row['price_kes']
-
-    if not INTASEND_PUBLIC_KEY or not INTASEND_SECRET_KEY:
-        # Dev mode: skip M-Pesa, just create a pending payment record and return
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            '''INSERT INTO payments (user_id, amount_kes, phone_number, status, service_id, country_id,
-               checkout_request_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?)''',
-            (current_user['id'], amount_kes, phone, 'dev_bypass', service_id, country_id,
-             f"dev_{current_user['id']}_{service_id}_{country_id}")
-        )
-        payment_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-        return jsonify({
-            'status': 'dev_bypass',
-            'message': 'DEV MODE: No IntaSend keys set. Payment skipped.',
-            'payment_id': payment_id,
-            'amount': amount_kes
-        })
-
-    try:
-        import requests as req
-        base = 'https://sandbox.intasend.com' if INTASEND_TEST_MODE else 'https://payment.intasend.com'
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {INTASEND_SECRET_KEY}'
-        }
-        payload = {
-            'phone_number': phone,
-            'email': f"{current_user['username']}@smskenya.net",
-            'amount': int(amount_kes),
-            'narrative': f"SMSKenya - {service_id.upper()} number ({country_id})"
-        }
-        r = req.post(f'{base}/api/v1/payment/mpesa-stk-push/', json=payload, headers=headers)
-        result = r.json()
-
-        if r.status_code not in (200, 201) or result.get('errors'):
-            return jsonify({'message': 'M-Pesa initiation failed', 'details': result}), 502
-
-        checkout_id = result.get('checkout_request_id') or result.get('id')
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(
-            '''INSERT INTO payments (user_id, amount_kes, phone_number, merchant_request_id,
-               checkout_request_id, status, service_id, country_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
-            (current_user['id'], amount_kes, phone,
-             result.get('merchant_request_id'), checkout_id,
-             'pending', service_id, country_id)
-        )
-        payment_id = cursor.lastrowid
-        conn.commit()
-        conn.close()
-
-        return jsonify({
-            'status': 'pending',
-            'payment_id': payment_id,
-            'checkout_request_id': checkout_id,
-            'amount': amount_kes,
-            'message': f'STK Push sent to {phone}. Enter M-Pesa PIN when prompted.'
-        })
-    except Exception as e:
-        return jsonify({'message': f'Payment initiation error: {str(e)}'}), 500
-
-
-@app.route('/api/payment/status/<int:payment_id>', methods=['GET'])
-@token_required
-def check_payment_status(current_user, payment_id):
-    """Poll payment status. When confirmed, generate the number automatically."""
-    conn = get_db_connection()
-    payment = conn.execute(
-        'SELECT * FROM payments WHERE id=? AND user_id=?',
-        (payment_id, current_user['id'])
-    ).fetchone()
-    conn.close()
-
-    if not payment:
-        return jsonify({'message': 'Payment not found'}), 404
-
-    # Already completed
-    if payment['status'] == 'confirmed':
-        return jsonify({'status': 'confirmed', 'payment_id': payment_id})
-
-    # Dev bypass — treat as confirmed immediately
-    if payment['status'] == 'dev_bypass':
-        return _complete_payment(payment_id, current_user)
-
-    if not INTASEND_PUBLIC_KEY:
-        return jsonify({'status': payment['status']})
-
-    try:
-        import requests as req
-        base = 'https://sandbox.intasend.com' if INTASEND_TEST_MODE else 'https://payment.intasend.com'
-        headers = {'Authorization': f'Bearer {INTASEND_SECRET_KEY}'}
-        r = req.get(
-            f'{base}/api/v1/payment/status/{payment["checkout_request_id"]}/',
-            headers=headers
-        )
-        result = r.json()
-        remote_status = result.get('invoice', {}).get('state', '').lower()
-
-        if remote_status == 'complete':
-            receipt = result.get('invoice', {}).get('mpesa_receipt', '')
-            conn = get_db_connection()
-            conn.execute(
-                'UPDATE payments SET status=?, mpesa_receipt=? WHERE id=?',
-                ('confirmed', receipt, payment_id)
-            )
-            conn.commit()
-            conn.close()
-            return _complete_payment(payment_id, current_user)
-        elif remote_status in ('failed', 'cancelled'):
-            conn = get_db_connection()
-            conn.execute('UPDATE payments SET status=? WHERE id=?', (remote_status, payment_id))
-            conn.commit()
-            conn.close()
-            return jsonify({'status': remote_status})
-        else:
-            return jsonify({'status': 'pending'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
-
-
-def _complete_payment(payment_id, current_user):
-    """Internal: after payment confirmed, generate the number and return it."""
-    conn = get_db_connection()
-    payment = conn.execute('SELECT * FROM payments WHERE id=?', (payment_id,)).fetchone()
-
-    service_id = payment['service_id']
-    country_id = payment['country_id']
-
-    p_service = get_mapping(service_id, 'service')
-    p_country = get_mapping(country_id, 'country')
-
-    if not HERO_SMS_API_KEY:
-        import random
-        res = {
-            "activationId": str(random.randint(100000, 999999)),
-            "phoneNumber": f"1{random.randint(2000000000, 9999999999)}"
-        }
-    else:
-        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=15.0)
-
-    if isinstance(res, dict) and 'activationId' in res:
-        order_id = res['activationId']
-        phone_number = res['phoneNumber']
-
-        cursor = conn.cursor()
-        cursor.execute(
-            '''INSERT INTO orders (user_id, service_id, country_id, phone_number,
-               order_id_provider, status)
-               VALUES (?, ?, ?, ?, ?, ?)''',
-            (current_user['id'], service_id, country_id, phone_number, order_id, 'waiting')
-        )
-        cursor.execute(
-            'UPDATE payments SET status=? WHERE id=?',
-            ('fulfilled', payment_id)
-        )
-
-        # Ensure quota row exists then increment
-        quota = conn.execute(
-            'SELECT * FROM quotas WHERE user_id=?', (current_user['id'],)
-        ).fetchone()
-        if quota is None:
-            cursor.execute(
-                'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 1, 1)',
-                (current_user['id'],)
-            )
-        else:
-            cursor.execute(
-                'UPDATE quotas SET used_numbers=used_numbers+1, allowed_numbers=MAX(allowed_numbers, used_numbers+1) WHERE user_id=?',
-                (current_user['id'],)
-            )
-        conn.commit()
-        conn.close()
-
-        return jsonify({
-            'status': 'confirmed',
-            'order_id': order_id,
-            'phone_number': phone_number,
-            'payment_id': payment_id
-        })
-    else:
-        conn.close()
-        msg = str(res)
-        return jsonify({
-            'status': 'confirmed',
-            'error': 'Payment taken but number generation failed. Contact support.',
-            'provider_response': msg
-        }), 502
-
-
-@app.route('/api/payment/callback', methods=['POST'])
-def payment_callback():
-    """IntaSend webhook callback for async payment confirmation."""
-    data = request.get_json(silent=True) or {}
-    checkout_id = (data.get('checkout_request_id') or
-                   data.get('invoice', {}).get('checkout_request_id'))
-    state = (data.get('state') or
-             data.get('invoice', {}).get('state', '')).lower()
-    receipt = (data.get('mpesa_receipt') or
-               data.get('invoice', {}).get('mpesa_receipt', ''))
-
-    if not checkout_id:
-        return jsonify({'status': 'ignored'}), 200
-
-    conn = get_db_connection()
-    payment = conn.execute(
-        'SELECT * FROM payments WHERE checkout_request_id=?', (checkout_id,)
-    ).fetchone()
-
-    if not payment or payment['status'] in ('confirmed', 'fulfilled'):
-        conn.close()
-        return jsonify({'status': 'already_processed'}), 200
-
-    if state == 'complete':
-        conn.execute(
-            'UPDATE payments SET status=?, mpesa_receipt=? WHERE checkout_request_id=?',
-            ('confirmed', receipt, checkout_id)
-        )
-        conn.commit()
-        # Note: number generation happens when frontend polls /api/payment/status
-
-    conn.close()
-    return jsonify({'status': 'ok'}), 200
 
 
 @app.route('/api/pricing', methods=['GET'])

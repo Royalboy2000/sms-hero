@@ -4,8 +4,8 @@ import {
   ExternalLink, MapPin, MessageCircle, ArrowRight,
   Info
 } from 'lucide-react';
-import { SERVICES, COUNTRIES, renderIcon, WHATSAPP_CONTACT, fetchPricing } from '../constants';
-import { Service, Country, PricingMap, PaymentStatus } from '../types';
+import { SERVICES, COUNTRIES, renderIcon, WHATSAPP_CONTACT } from '../constants';
+import { Service, Country } from '../types';
 import { useCurrency } from '../context/CurrencyContext';
 import { useAuth } from '../context/AuthContext';
 import { Loader2 } from 'lucide-react';
@@ -36,85 +36,6 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
   const [isGenerating, setIsGenerating] = useState(false);
   const [genError, setGenError] = useState('');
 
-  const [pricing, setPricing] = useState<PricingMap>({});
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('idle');
-  const [paymentId, setPaymentId] = useState<number | null>(null);
-  const [mpesaPhone, setMpesaPhone] = useState('');
-  const [paymentMessage, setPaymentMessage] = useState('');
-  const [generatedNumber, setGeneratedNumber] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchPricing().then(setPricing);
-  }, []);
-
-  const getPrice = (serviceId: string, countryCode: string) => {
-    return pricing[serviceId]?.[countryCode] ?? null;
-  };
-
-  const initiateMpesaPayment = async () => {
-    if (!selectedService || !selectedCountry || !mpesaPhone) return;
-    if (!token) { /* show login required error */ return; }
-
-    setPaymentStatus('initiating');
-    setPaymentMessage('');
-
-    try {
-      const res = await fetch('/api/payment/initiate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          phone: mpesaPhone,
-          service_id: selectedService.id,
-          country_id: selectedCountry.code
-        })
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setPaymentId(data.payment_id);
-        setPaymentStatus('pending');
-        setPaymentMessage(data.message || 'Check your phone for M-Pesa prompt');
-      } else {
-        setPaymentStatus('failed');
-        setPaymentMessage(data.message || 'Payment initiation failed');
-      }
-    } catch {
-      setPaymentStatus('failed');
-      setPaymentMessage('Connection error');
-    }
-  };
-
-  useEffect(() => {
-    if (paymentStatus !== 'pending' || !paymentId || !token) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/payment/status/${paymentId}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        const data = await res.json();
-
-        if (data.status === 'confirmed' && data.phone_number) {
-          setGeneratedNumber(data.phone_number);
-          setPaymentStatus('confirmed');
-          clearInterval(interval);
-        } else if (data.status === 'fulfilled' && data.phone_number) {
-          setGeneratedNumber(data.phone_number);
-          setPaymentStatus('confirmed');
-          clearInterval(interval);
-        } else if (['failed', 'cancelled'].includes(data.status)) {
-          setPaymentStatus('failed');
-          setPaymentMessage('Payment was not completed');
-          clearInterval(interval);
-        }
-      } catch {}
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, [paymentStatus, paymentId, token]);
 
   // Reset state when opening
   useEffect(() => {
@@ -160,6 +81,41 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
     const text = `Hello, I would like to buy a verification number.%0A%0AService: ${selectedService.name}%0ACountry: ${selectedCountry.name}%0APrice: ${priceText}`;
     const url = `https://wa.me/${WHATSAPP_CONTACT}?text=${text}`;
     window.open(url, '_blank');
+  };
+
+  const handleGenerate = async () => {
+    if (!selectedService || !selectedCountry || !token) return;
+
+    setIsGenerating(true);
+    setGenError('');
+
+    try {
+      const response = await fetch('/api/generate-number', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          service_id: selectedService.id,
+          country_id: selectedCountry.code
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Redirect to dashboard
+        onClose();
+        navigate('/dashboard');
+      } else {
+        setGenError(data.message || 'Failed to generate number');
+      }
+    } catch (err) {
+      setGenError('Failed to connect to server');
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
 
@@ -308,113 +264,66 @@ const CatalogModal: React.FC<CatalogModalProps> = ({
           <div className="p-6 border-t border-white/5 bg-zinc-900/20">
              {step === 2 && selectedService && selectedCountry ? (
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="flex-1">
-                      {paymentStatus === 'idle' && (
-                        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                              <CheckCircle2 className="w-6 h-6 text-emerald-500" />
-                            </div>
-                            <div>
-                              <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Price to Pay</p>
-                              <p className="text-2xl font-mono font-bold text-white">
-                                {getPrice(selectedService.id, selectedCountry.code)
-                                  ? (currency === 'KES'
-                                    ? `KSh ${getPrice(selectedService.id, selectedCountry.code)?.kes}`
-                                    : `$${getPrice(selectedService.id, selectedCountry.code)?.usd}`)
-                                  : formatPrice(selectedService)}
-                              </p>
-                            </div>
-                          </div>
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                            <CheckCircle2 className="w-6 h-6 text-emerald-500" />
+                        </div>
+                        <div>
+                            <p className="text-xs text-zinc-500 uppercase font-bold tracking-widest">Price to Pay</p>
+                            <p className="text-2xl font-mono font-bold text-white">{formatPrice(selectedService)}</p>
+                        </div>
+                    </div>
 
-                          <div className="flex-1 w-full sm:w-auto flex flex-col items-end gap-3">
+                    <div className="flex-1 w-full sm:w-auto">
+                        {genError && (
+                             <div className="mb-2 bg-red-500/5 p-3 rounded-xl border border-red-500/10">
+                                <p className="text-[10px] text-red-500 font-bold">{genError}</p>
+                                {genError.toLowerCase().includes('quota') && (
+                                    <a
+                                        href={`https://wa.me/${WHATSAPP_CONTACT}?text=Hello, my username is ${user?.username}. I need to increase my number generation quota.`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-emerald-500 hover:underline mt-1 inline-block font-bold"
+                                    >
+                                        Contact Admin on WhatsApp to get credit →
+                                    </a>
+                                )}
+                                {genError.toLowerCase().includes('whitelist') && (
+                                    <a
+                                        href={`https://wa.me/${WHATSAPP_CONTACT}?text=Hello, I would like to whitelist ${selectedService?.name} in ${selectedCountry?.name} for my account (${user?.username}).`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-emerald-500 hover:underline mt-1 inline-block font-bold"
+                                    >
+                                        Ask Admin to Whitelist this Service →
+                                    </a>
+                                )}
+                             </div>
+                        )}
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-4">
                             {user ? (
-                              <div className="w-full sm:max-w-xs flex flex-col gap-2">
-                                <input
-                                  type="text"
-                                  placeholder="M-Pesa Number (07XXXXXXXX)"
-                                  value={mpesaPhone}
-                                  onChange={(e) => setMpesaPhone(e.target.value)}
-                                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-emerald-500"
-                                />
                                 <button
-                                  disabled={!mpesaPhone}
-                                  onClick={initiateMpesaPayment}
-                                  className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl transition-all disabled:opacity-50"
+                                    disabled={isGenerating || (quota && (quota.allowed - quota.used) <= 0)}
+                                    onClick={handleGenerate}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105 disabled:opacity-50 disabled:scale-100"
                                 >
-                                  Pay via M-Pesa
-                                  <ArrowRight className="w-4 h-4" />
+                                    {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : (quota && (quota.allowed - quota.used) <= 0) ? 'No Quota Left' : 'Generate Number Now'}
+                                    {!isGenerating && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
                                 </button>
-                              </div>
                             ) : (
-                              <button
-                                onClick={handleOrder}
-                                className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all"
-                              >
-                                Send Order to WhatsApp
-                                <ArrowRight className="w-5 h-5" />
-                              </button>
+                                <button
+                                    onClick={handleOrder}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-3 px-10 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-2xl transition-all shadow-[0_0_30px_rgba(16,185,129,0.3)] group hover:scale-105"
+                                >
+                                    Send Order to WhatsApp
+                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </button>
                             )}
-                          </div>
+                            <div className="flex flex-col items-center sm:items-end gap-1">
+                                <p className="text-[10px] text-zinc-500 font-medium">Best Price in Kenya</p>
+                                {user && <p className="text-[10px] text-emerald-500 font-bold">Quota: {(quota?.allowed || 0) - (quota?.used || 0)} left</p>}
+                            </div>
                         </div>
-                      )}
-
-                      {paymentStatus === 'initiating' && (
-                        <div className="flex items-center justify-center py-4 gap-3 text-white">
-                          <Loader2 className="w-6 h-6 animate-spin text-emerald-500" />
-                          <span>Initiating payment...</span>
-                        </div>
-                      )}
-
-                      {paymentStatus === 'pending' && (
-                        <div className="text-center py-4">
-                          <Loader2 className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-2" />
-                          <p className="text-white font-bold">{paymentMessage}</p>
-                          <p className="text-xs text-zinc-500 mt-1">Waiting for confirmation...</p>
-                        </div>
-                      )}
-
-                      {paymentStatus === 'confirmed' && (
-                        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-2xl p-6 text-center">
-                          <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-3" />
-                          <h4 className="text-white font-bold mb-1">Payment Confirmed!</h4>
-                          <p className="text-sm text-zinc-400 mb-4">Your number is ready:</p>
-                          <div className="flex items-center justify-center gap-3 bg-black/40 p-4 rounded-xl border border-white/5 mb-4">
-                            <span className="text-2xl font-mono font-bold text-emerald-400">{generatedNumber}</span>
-                            <button
-                              onClick={() => {
-                                if (generatedNumber) {
-                                  navigator.clipboard.writeText(generatedNumber);
-                                }
-                              }}
-                              className="p-2 hover:bg-white/5 rounded-lg text-emerald-500"
-                            >
-                              <ExternalLink className="w-5 h-5" />
-                            </button>
-                          </div>
-                          <button
-                            onClick={() => {
-                              onClose();
-                              navigate('/dashboard');
-                            }}
-                            className="text-sm text-emerald-500 hover:underline font-bold"
-                          >
-                            Go to Dashboard to see SMS Codes →
-                          </button>
-                        </div>
-                      )}
-
-                      {paymentStatus === 'failed' && (
-                        <div className="text-center py-4">
-                          <p className="text-red-500 font-bold mb-2">{paymentMessage}</p>
-                          <button
-                            onClick={() => setPaymentStatus('idle')}
-                            className="px-6 py-2 bg-zinc-800 text-white rounded-lg hover:bg-zinc-700"
-                          >
-                            Try Again
-                          </button>
-                        </div>
-                      )}
                     </div>
                 </div>
              ) : (
