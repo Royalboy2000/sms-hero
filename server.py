@@ -346,6 +346,14 @@ def login():
 def get_me(current_user):
     conn = get_db_connection()
     quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (current_user['id'],)).fetchone()
+    if quota is None:
+        cursor = conn.cursor()
+        cursor.execute(
+            'INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)',
+            (current_user['id'],)
+        )
+        conn.commit()
+        quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (current_user['id'],)).fetchone()
     conn.close()
 
     return jsonify({
@@ -818,7 +826,18 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             conn = get_db_connection()
             user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
             quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+
+            if user and not quota:
+                # Auto-create missing quota row
+                conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, 600, 0)', (user_id,))
+                conn.commit()
+                quota = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+
             conn.close()
+
+            if not user:
+                bot.answer_callback_query(call.id, "❌ User not found.")
+                return
 
             text = f"👤 User: {user['username']}\n📊 Quota: {quota['used_numbers']} used / {quota['allowed_numbers']} allowed"
             markup = InlineKeyboardMarkup()
