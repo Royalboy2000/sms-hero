@@ -15,7 +15,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const { currency, toggleCurrency } = useCurrency();
-  const { user, logout } = useAuth();
+  const { user, logout, isLoading } = useAuth();
+
+  React.useEffect(() => {
+    if (!isLoading && !user) {
+      setIsAuthModalOpen(true);
+    }
+  }, [user, isLoading]);
   const location = useLocation();
 
   const isActive = (path: string) => location.pathname === path;
