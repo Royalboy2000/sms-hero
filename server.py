@@ -238,15 +238,12 @@ def init_db():
         cursor.execute('INSERT OR IGNORE INTO mappings (frontend_id, provider_id, type) VALUES (?, ?, ?)', (fid, pid, 'service'))
 
     # Fix any wrong country IDs from previous seeds
-    correct_countries = {
-        'US': '187', 'TZ': '9', 'JP': '182', 'SG': '196',
-        'IT': '86',  'CH': '173'
-    }
-    for fid, pid in correct_countries.items():
-        cursor.execute(
-            'UPDATE mappings SET provider_id=? WHERE frontend_id=? AND type=?',
-            (pid, fid, 'country')
-        )
+    cursor.execute("UPDATE mappings SET provider_id='187' WHERE frontend_id='US' AND type='country'")
+    cursor.execute("UPDATE mappings SET provider_id='9'   WHERE frontend_id='TZ' AND type='country'")
+    cursor.execute("UPDATE mappings SET provider_id='182' WHERE frontend_id='JP' AND type='country'")
+    cursor.execute("UPDATE mappings SET provider_id='196' WHERE frontend_id='SG' AND type='country'")
+    cursor.execute("UPDATE mappings SET provider_id='86'  WHERE frontend_id='IT' AND type='country'")
+    cursor.execute("UPDATE mappings SET provider_id='173' WHERE frontend_id='CH' AND type='country'")
     cursor.execute("DELETE FROM mappings WHERE frontend_id='KR' AND type='country'")
 
     conn.commit()
@@ -437,6 +434,22 @@ def set_mapping(frontend_id, provider_id, mapping_type):
     conn.commit()
     conn.close()
 
+def get_number_with_smart_pricing(p_service, p_country):
+    """Try price tiers from cheapest to most expensive. Return first success."""
+    price_tiers = [0.5, 1.0, 2.0, 3.0, 5.0, 10.0, 15.0]
+    last_res = None
+    for max_p in price_tiers:
+        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=max_p)
+        if isinstance(res, dict) and 'activationId' in res:
+            return res
+        last_res = res
+        # Stop escalating if error is not "no numbers at this price"
+        if isinstance(res, str) and 'NO_NUMBER' not in res.upper():
+            break
+        if isinstance(res, dict) and res.get('status') not in (None, 'NO_NUMBERS'):
+            break
+    return last_res
+
 @app.route('/api/generate-number', methods=['POST'])
 @token_required
 def generate_number(current_user):
@@ -487,7 +500,7 @@ def generate_number(current_user):
         }
     else:
         # Call Hero-SMS API V2
-        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=3.0)
+        res = get_number_with_smart_pricing(p_service, p_country)
 
     if isinstance(res, dict) and 'activationId' in res:
         order_id = res['activationId']
@@ -552,7 +565,7 @@ def direct_generate():
         }
     else:
         # Call Hero-SMS API V2
-        res = call_hero_api('getNumberV2', service=p_service, country=p_country, maxPrice=3.0)
+        res = get_number_with_smart_pricing(p_service, p_country)
 
     if isinstance(res, dict) and 'activationId' in res:
         order_id = res['activationId']
@@ -643,15 +656,38 @@ def cancel_order(current_user, order_id):
     if res == "ACCESS_CANCEL": # Allow simulation
         conn = get_db_connection()
         order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ? AND user_id = ?', (order_id, current_user['id'])).fetchone()
-        if order and order['status'] == 'waiting':
-             cursor = conn.cursor()
-             cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
-             cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (current_user['id'],))
-             conn.commit()
+        if order:
+            cursor = conn.cursor()
+            cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+            if order['status'] == 'waiting':
+                cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (current_user['id'],))
+            conn.commit()
         conn.close()
-        return jsonify({'message': 'Order cancelled and quota refunded.'})
+        return jsonify({'message': 'Order cancelled.'})
     else:
         return jsonify({'message': f'Failed to cancel order: {res}'}), 400
+
+@app.route('/api/admin/order/<order_id>/cancel', methods=['POST'])
+@token_required
+def admin_cancel_order(current_user, order_id):
+    if current_user.get('username') != 'admin':
+        return jsonify({'message': 'Unauthorized'}), 403
+    conn = get_db_connection()
+    order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ?', (order_id,)).fetchone()
+    if not order:
+        conn.close()
+        return jsonify({'message': 'Order not found'}), 404
+    res = call_hero_api('setStatus', id=order_id, status=8) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
+    if res == "ACCESS_CANCEL":
+        cursor = conn.cursor()
+        cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+        if order['status'] == 'waiting' and order['user_id']:
+            cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (order['user_id'],))
+        conn.commit()
+        conn.close()
+        return jsonify({'message': 'Cancelled by admin.'})
+    conn.close()
+    return jsonify({'message': f'Provider cancel failed: {res}'}), 400
 
 @app.route('/api/direct/cancel', methods=['POST'])
 def direct_cancel():
@@ -723,6 +759,14 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
     bot = telebot.TeleBot(TELEGRAM_BOT_TOKEN)
     from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
+    COUNTRY_FLAGS = {
+        'AE':'🇦🇪','AU':'🇦🇺','BR':'🇧🇷','CA':'🇨🇦','CH':'🇨🇭','CN':'🇨🇳',
+        'DE':'🇩🇪','ES':'🇪🇸','FR':'🇫🇷','GB':'🇬🇧','ID':'🇮🇩','IN':'🇮🇳',
+        'IT':'🇮🇹','JP':'🇯🇵','KE':'🇰🇪','NL':'🇳🇱','NG':'🇳🇬','PH':'🇵🇭',
+        'PL':'🇵🇱','QA':'🇶🇦','RU':'🇷🇺','SA':'🇸🇦','SE':'🇸🇪','SG':'🇸🇬',
+        'TR':'🇹🇷','TZ':'🇹🇿','UG':'🇺🇬','US':'🇺🇸','ZA':'🇿🇦'
+    }
+
     @bot.message_handler(commands=['start', 'menu'])
     def send_welcome(message):
         if str(message.from_user.id) != ADMIN_TELEGRAM_ID:
@@ -736,11 +780,15 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
         wl_label = '🔒 Whitelist: ON' if wl_mode else '🔓 Whitelist: OFF (open)'
 
         markup = InlineKeyboardMarkup()
-        markup.add(InlineKeyboardButton("Manage Users", callback_data="list_users"))
-        markup.add(InlineKeyboardButton("Direct Purchase Tokens", callback_data="manage_tokens"))
-        markup.add(InlineKeyboardButton("💰 Check HeroSMS Balance", callback_data="check_balance"))
-        markup.add(InlineKeyboardButton("🏷️ View Provider Prices", callback_data="view_prices"))
+        markup.add(InlineKeyboardButton("👥 Manage Users", callback_data="list_users"))
+        markup.add(
+            InlineKeyboardButton("📋 List Services", callback_data="list_services_0"),
+            InlineKeyboardButton("🌍 List Countries", callback_data="list_countries_0")
+        )
+        markup.add(InlineKeyboardButton("💰 HeroSMS Balance", callback_data="check_balance"))
+        markup.add(InlineKeyboardButton("🏷️ Check Prices", callback_data="view_prices"))
         markup.add(InlineKeyboardButton(wl_label, callback_data="toggle_whitelist"))
+        markup.add(InlineKeyboardButton("🎟️ Direct Purchase Tokens", callback_data="manage_tokens"))
         bot.send_message(message.chat.id, "SMSKenya Admin Panel:", reply_markup=markup)
 
     @bot.callback_query_handler(func=lambda call: True)
@@ -774,10 +822,96 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
 
             text = f"👤 User: {user['username']}\n📊 Quota: {quota['used_numbers']} used / {quota['allowed_numbers']} allowed"
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("⚙️ Set Allowed Quota", callback_data=f"askquota_{user_id}"))
+            markup.add(InlineKeyboardButton("⚙️ Set Quota (replace)", callback_data=f"askquota_{user_id}"))
+            markup.add(InlineKeyboardButton("➕ Add to Quota", callback_data=f"askquota_add_{user_id}"))
+            markup.add(InlineKeyboardButton("📋 View Active Orders", callback_data=f"user_orders_{user_id}"))
             markup.add(InlineKeyboardButton("🛡️ Manage Whitelist", callback_data=f"whitelist_{user_id}"))
             markup.add(InlineKeyboardButton("« Back to Users", callback_data="list_users"))
             bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("user_orders_"):
+            user_id = call.data.split("_")[2]
+            conn = get_db_connection()
+            orders = conn.execute(
+                "SELECT * FROM orders WHERE user_id = ? AND status IN ('waiting','received') ORDER BY timestamp DESC LIMIT 10",
+                (user_id,)
+            ).fetchall()
+            conn.close()
+            markup = InlineKeyboardMarkup()
+            if not orders:
+                text = f"No active orders for user {user_id}."
+            else:
+                text = f"📋 Active orders (user {user_id}):\n\n"
+                for o in orders:
+                    text += f"• #{o['order_id_provider']} | {o['service_id']}@{o['country_id']} | {o['status']}\n  {o['phone_number']}\n\n"
+                    markup.add(
+                        InlineKeyboardButton(f"❌ Cancel #{o['order_id_provider'][:6]}", callback_data=f"adm_cancel_{o['order_id_provider']}_{user_id}"),
+                        InlineKeyboardButton(f"🔄 Regen #{o['order_id_provider'][:6]}", callback_data=f"adm_regen_{o['order_id_provider']}_{user_id}_{o['service_id']}_{o['country_id']}")
+                    )
+            markup.add(InlineKeyboardButton("« Back to User", callback_data=f"user_{user_id}"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("adm_cancel_"):
+            parts = call.data.split("_")
+            order_id = parts[2]
+            user_id = parts[3]
+            conn = get_db_connection()
+            order = conn.execute('SELECT * FROM orders WHERE order_id_provider = ?', (order_id,)).fetchone()
+            res = call_hero_api('setStatus', id=order_id, status=8) if HERO_SMS_API_KEY else "ACCESS_CANCEL"
+            if res == "ACCESS_CANCEL":
+                cursor = conn.cursor()
+                cursor.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', order_id))
+                if order and order['status'] == 'waiting' and order['user_id']:
+                    cursor.execute('UPDATE quotas SET used_numbers = used_numbers - 1 WHERE user_id = ?', (order['user_id'],))
+                conn.commit()
+                bot.answer_callback_query(call.id, f"✅ Order {order_id[:8]} cancelled.")
+            else:
+                bot.answer_callback_query(call.id, f"❌ Failed: {str(res)[:80]}")
+            conn.close()
+            # Redirect to user orders
+            call.data = f"user_orders_{user_id}"
+            callback_query(call)
+
+        elif call.data.startswith("adm_regen_"):
+            parts = call.data.split("_")
+            old_order_id = parts[2]
+            user_id = parts[3]
+            service_id = parts[4]
+            country_id = parts[5]
+            # Cancel old
+            if HERO_SMS_API_KEY:
+                call_hero_api('setStatus', id=old_order_id, status=8)
+            conn = get_db_connection()
+            conn.execute('UPDATE orders SET status = ? WHERE order_id_provider = ?', ('cancelled', old_order_id))
+            conn.commit()
+            conn.close()
+            # Get new
+            p_service = get_mapping(service_id, 'service')
+            p_country = get_mapping(country_id, 'country')
+            if HERO_SMS_API_KEY:
+                res = get_number_with_smart_pricing(p_service, p_country)
+            else:
+                import random
+                res = {"activationId": str(random.randint(100000,999999)), "phoneNumber": f"1{random.randint(2000000000,9999999999)}"}
+            if isinstance(res, dict) and 'activationId' in res:
+                conn = get_db_connection()
+                conn.execute(
+                    'INSERT INTO orders (user_id, service_id, country_id, phone_number, order_id_provider, status) VALUES (?,?,?,?,?,?)',
+                    (user_id, service_id, country_id, res['phoneNumber'], res['activationId'], 'waiting')
+                )
+                conn.commit()
+                conn.close()
+                bot.answer_callback_query(call.id, f"✅ New: {res['phoneNumber']}")
+            else:
+                bot.answer_callback_query(call.id, f"❌ No number: {str(res)[:100]}")
+            # Redirect to user orders
+            call.data = f"user_orders_{user_id}"
+            callback_query(call)
+
+        elif call.data.startswith("askquota_add_"):
+            user_id = call.data.split("_")[2]
+            msg = bot.send_message(call.message.chat.id, "How many numbers to ADD to this user's quota?")
+            bot.register_next_step_handler(msg, process_add_quota, user_id)
 
         elif call.data.startswith("askquota_"):
             user_id = call.data.split("_")[1]
@@ -857,12 +991,62 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             wl_label = '🔒 Whitelist: ON' if wl_mode else '🔓 Whitelist: OFF (open)'
 
             markup = InlineKeyboardMarkup()
-            markup.add(InlineKeyboardButton("Manage Users", callback_data="list_users"))
-            markup.add(InlineKeyboardButton("Direct Purchase Tokens", callback_data="manage_tokens"))
-            markup.add(InlineKeyboardButton("💰 Check HeroSMS Balance", callback_data="check_balance"))
-            markup.add(InlineKeyboardButton("🏷️ View Provider Prices", callback_data="view_prices"))
+            markup.add(InlineKeyboardButton("👥 Manage Users", callback_data="list_users"))
+            markup.add(
+                InlineKeyboardButton("📋 List Services", callback_data="list_services_0"),
+                InlineKeyboardButton("🌍 List Countries", callback_data="list_countries_0")
+            )
+            markup.add(InlineKeyboardButton("💰 HeroSMS Balance", callback_data="check_balance"))
+            markup.add(InlineKeyboardButton("🏷️ Check Prices", callback_data="view_prices"))
             markup.add(InlineKeyboardButton(wl_label, callback_data="toggle_whitelist"))
+            markup.add(InlineKeyboardButton("🎟️ Direct Purchase Tokens", callback_data="manage_tokens"))
             bot.edit_message_text("SMSKenya Admin Panel:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("list_services_"):
+            page = int(call.data.split("_")[2])
+            per_page = 10
+            conn = get_db_connection()
+            services = conn.execute(
+                "SELECT frontend_id, provider_id FROM mappings WHERE type='service' ORDER BY frontend_id LIMIT ? OFFSET ?",
+                (per_page, page * per_page)
+            ).fetchall()
+            total = conn.execute("SELECT COUNT(*) FROM mappings WHERE type='service'").fetchone()[0]
+            conn.close()
+            lines = [f"  {s['frontend_id']} → {s['provider_id']}" for s in services]
+            text = "📋 Service Mappings:\n\n" + "\n".join(lines)
+            markup = InlineKeyboardMarkup()
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton("« Prev", callback_data=f"list_services_{page-1}"))
+            if (page + 1) * per_page < total:
+                nav.append(InlineKeyboardButton("Next »", callback_data=f"list_services_{page+1}"))
+            if nav:
+                markup.add(*nav)
+            markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("list_countries_"):
+            page = int(call.data.split("_")[2])
+            per_page = 10
+            conn = get_db_connection()
+            countries = conn.execute(
+                "SELECT frontend_id, provider_id FROM mappings WHERE type='country' ORDER BY frontend_id LIMIT ? OFFSET ?",
+                (per_page, page * per_page)
+            ).fetchall()
+            total = conn.execute("SELECT COUNT(*) FROM mappings WHERE type='country'").fetchone()[0]
+            conn.close()
+            lines = [f"  {COUNTRY_FLAGS.get(c['frontend_id'],'')} {c['frontend_id']} → {c['provider_id']}" for c in countries]
+            text = "🌍 Country Mappings:\n\n" + "\n".join(lines)
+            markup = InlineKeyboardMarkup()
+            nav = []
+            if page > 0:
+                nav.append(InlineKeyboardButton("« Prev", callback_data=f"list_countries_{page-1}"))
+            if (page + 1) * per_page < total:
+                nav.append(InlineKeyboardButton("Next »", callback_data=f"list_countries_{page+1}"))
+            if nav:
+                markup.add(*nav)
+            markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
         elif call.data == "toggle_whitelist":
             conn = get_db_connection()
@@ -877,20 +1061,87 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
             callback_query(type('obj', (object,), {'data': 'main_menu', 'from_user': call.from_user, 'message': call.message, 'id': call.id}))
 
         elif call.data == "view_prices":
-            # Start a flow to ask for service and country
-            msg = bot.send_message(call.message.chat.id, "🔍 Send provider service and country IDs for pricing (e.g., `wa 8`).")
-            bot.register_next_step_handler(msg, process_check_prices)
+            markup = InlineKeyboardMarkup()
+            svcs = ['wa', 'tg', 'ig', 'fb', 'goo', 'tt', 'pp', 'go']
+            row = []
+            for svc in svcs:
+                row.append(InlineKeyboardButton(svc.upper(), callback_data=f"price_svc_{svc}"))
+                if len(row) == 4:
+                    markup.add(*row)
+                    row = []
+            if row:
+                markup.add(*row)
+            markup.add(InlineKeyboardButton("« Back", callback_data="main_menu"))
+            bot.edit_message_text("Select service:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("price_svc_"):
+            svc = call.data.split("_")[2]
+            conn = get_db_connection()
+            countries = conn.execute("SELECT frontend_id, provider_id FROM mappings WHERE type='country' ORDER BY frontend_id").fetchall()
+            conn.close()
+            markup = InlineKeyboardMarkup()
+            row = []
+            for c in countries:
+                flag = COUNTRY_FLAGS.get(c['frontend_id'], '')
+                row.append(InlineKeyboardButton(f"{flag}{c['frontend_id']}", callback_data=f"pchk_{svc}_{c['frontend_id']}_{c['provider_id']}"))
+                if len(row) == 3:
+                    markup.add(*row)
+                    row = []
+            if row:
+                markup.add(*row)
+            markup.add(InlineKeyboardButton("« Back", callback_data="view_prices"))
+            bot.edit_message_text(f"Select country for {svc.upper()}:", call.message.chat.id, call.message.message_id, reply_markup=markup)
+
+        elif call.data.startswith("pchk_"):
+            parts = call.data.split("_")
+            svc = parts[1]
+            fe_country = parts[2]
+            prov_country = parts[3]
+            res = call_hero_api('getPrices', service=svc, country=prov_country)
+            if isinstance(res, dict) and str(prov_country) in res:
+                sd = res[str(prov_country)].get(svc, {})
+                cost = sd.get('cost', 'N/A')
+                count = sd.get('count', 'N/A')
+                text = f"🏷️ {svc.upper()} @ {fe_country} (ID:{prov_country})\n💰 Cost: ${cost}\n📦 Stock: {count}"
+            else:
+                text = f"No data for {svc}@{prov_country}.\nRaw: {str(res)[:300]}"
+            markup = InlineKeyboardMarkup()
+            markup.add(InlineKeyboardButton("« Back to Countries", callback_data=f"price_svc_{svc}"))
+            markup.add(InlineKeyboardButton("« Main Menu", callback_data="main_menu"))
+            bot.edit_message_text(text, call.message.chat.id, call.message.message_id, reply_markup=markup)
 
     def process_set_quota(message, user_id):
         try:
             amount = int(message.text.strip())
             conn = get_db_connection()
-            conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (amount, user_id))
+            existing = conn.execute('SELECT user_id FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+            if existing:
+                conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (amount, user_id))
+            else:
+                conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, 0)', (user_id, amount))
             conn.commit()
             conn.close()
-            bot.reply_to(message, f"✅ Quota set to {amount} for user ID {user_id}")
+            bot.reply_to(message, f"✅ Quota set to {amount} for user {user_id}")
         except ValueError:
-            bot.reply_to(message, "❌ Invalid number. Please enter an integer.")
+            bot.reply_to(message, "❌ Enter a valid number.")
+
+    def process_add_quota(message, user_id):
+        try:
+            amount = int(message.text.strip())
+            conn = get_db_connection()
+            existing = conn.execute('SELECT * FROM quotas WHERE user_id = ?', (user_id,)).fetchone()
+            if existing:
+                new_total = existing['allowed_numbers'] + amount
+                conn.execute('UPDATE quotas SET allowed_numbers = ? WHERE user_id = ?', (new_total, user_id))
+                msg = f"✅ Added {amount}. New total: {new_total}"
+            else:
+                conn.execute('INSERT INTO quotas (user_id, allowed_numbers, used_numbers) VALUES (?, ?, 0)', (user_id, amount))
+                msg = f"✅ Created quota: {amount}"
+            conn.commit()
+            conn.close()
+            bot.reply_to(message, msg)
+        except ValueError:
+            bot.reply_to(message, "❌ Enter a valid number.")
 
     def process_check_prices(message):
         try:
@@ -899,18 +1150,11 @@ if TELEGRAM_BOT_TOKEN and ":" in TELEGRAM_BOT_TOKEN:
                 service, country = parts
                 res = call_hero_api('getPrices', service=service, country=country)
 
-                # Format JSON response if it is one
                 if isinstance(res, dict) and str(country) in res:
                     service_data = res[str(country)].get(service, {})
                     cost = service_data.get('cost', 'N/A')
                     count = service_data.get('count', 'N/A')
-                    text = f"🏷️ Provider Price for {service}@{country}:\n💰 Cost: ${cost}\n📦 Available: {count}"
-                elif isinstance(res, list) and len(res) > 0:
-                    # Fallback for old list-based parsing if still returned
-                    data = res[0].get(service, {})
-                    cost = data.get('cost', 'N/A')
-                    count = data.get('count', 'N/A')
-                    text = f"🏷️ Provider Price (legacy list format) for {service}@{country}:\n💰 Cost: {cost}\n📦 Available: {count}"
+                    text = f"🏷️ {service}@{country}: ${cost}, {count} available"
                 else:
                     text = f"📝 Provider Response: {res}"
 
